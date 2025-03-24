@@ -4,5 +4,7 @@ build
 **/**.s
 **/**.o
 swift-cc
+main
+*tmp
 
 .env
