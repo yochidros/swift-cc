@@ -4,6 +4,9 @@ swift-cc: main.swift
 test: swift-cc
 	./test.sh
 
+object: main.swift
+	swiftc -emit-object main.swift -o main.o
+
 clean:
 	rm -f swift-cc *.o *.s *~ tmp*
 
