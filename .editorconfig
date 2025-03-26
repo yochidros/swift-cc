@@ -1,0 +1,5 @@
+root = true
+
+[*.swift]
+tab_size = 2
+
