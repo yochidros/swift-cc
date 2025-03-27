@@ -5,29 +5,69 @@ enum TokenKind: String {
 	case reserved
 	case eof
 }
-		}
+
+@propertyWrapper
+final class Ref<T: Equatable>: Equatable {
+	private var value: T
+
+	var wrappedValue: T {
+		get { value }
+		set { value = newValue }
 	}
 
+	init(_ value: T) {
+		self.value = value
+	}
 
-class Token: CustomDebugStringConvertible {
+	subscript<U>(keyPath: WritableKeyPath<T, U>) -> U {
+		get { value[keyPath: keyPath] }
+		set { value[keyPath: keyPath] = newValue }
+	}
+
+	static func == (lhs: Ref<T>, rhs: Ref<T>) -> Bool {
+		return lhs.value == rhs.value
+	}
+}
+
+struct Token: CustomDebugStringConvertible, Equatable {
 	let kind: TokenKind
-	var next: Token?
+	let str: String
 
 	var number: Int?
-	let str: Substring
 
-	init(kind: TokenKind, next: Token? = nil, number: Int? = nil, str: Substring) {
+	var next: Ref<Token>?
+
+	init(kind: TokenKind, str: String, number: Int? = nil) {
 		self.kind = kind
-		self.next = next
-		self.number = number
 		self.str = str
+		self.number = number
+	}
+
+	@discardableResult
+	mutating func setEdge(_ newValue: Token) -> Bool {
+		guard next == nil else {
+			if next?.wrappedValue.setEdge(newValue) == true {
+				return true
+			}
+			return false
+		}
+		next = Ref(newValue)
+		return true
 	}
 
 	var debugDescription: String {
 		if let next {
-			return "\(kind)(\(str))\n -> \(next)"
+			if kind == .eof {
+				return "\(kind) -> \(next.wrappedValue)"
+			} else {
+				return "\(kind)(\(str)) -> \(next.wrappedValue)"
+			}
 		} else {
-			return "\(kind)(\(str))"
+			if kind == .eof {
+				return "\(kind)"
+			} else {
+				return "\(kind)(\(str))"
+			}
 		}
 	}
 }
@@ -36,47 +76,41 @@ func printInstruction(op: String, args: String...) {
 	print("\t\(op)\t\(args.joined(separator: ", "))")
 }
 
-
-}
-
-func consume(op: Substring) -> Bool {
-	if tokens?.kind != .reserved || tokens?.str != op {
+func consume(_ cur: inout Token?, op: String) -> Bool {
+	if cur?.kind != .reserved || cur?.str != op {
 		return false
 	}
-	tokens = tokens?.next
+	cur = cur?.next?.wrappedValue
 	return true
 }
 
-func expect(op: Substring) {
-	if tokens?.kind != .reserved || tokens?.str != op {
+func expect(_ cur: inout Token?, op: String) {
+	if cur?.kind != .reserved || cur?.str != op {
 		fatalError("unexpected token: \(op)")
 	}
-	tokens = tokens?.next
+	cur = cur?.next?.wrappedValue
 }
 
-func expectNumber() -> Int {
-	guard let num = tokens?.number, tokens?.kind == .number else {
+func expectNumber(_ cur: inout Token?) -> Int {
+	guard let num = cur?.number, cur?.kind == .number else {
 		fatalError("not number")
 	}
-	tokens = tokens?.next
+	cur = cur?.next?.wrappedValue
 	return num
 }
 
-func atEOF() -> Bool {
-	return tokens?.kind == .eof
+func newToken(cur: inout Token, kind: TokenKind, str: String, number: Int? = nil) {
+	let new = Token(kind: kind, str: str, number: number)
+	cur.setEdge(new)
 }
 
-@discardableResult
-func newToken(cur: Token, kind: TokenKind, str: Substring) -> Token {
-	let new = Token(kind: kind, str: str)
-	cur.next = new
-	return new
+func atEOF(_ cur: Token?) -> Bool {
+	return cur?.kind == .eof
 }
 
-func tokenize(_ str: String) -> Token {
-	let head: Token = .init(kind: .eof, str: "")
+func tokenize(_ str: String) -> Token? {
+	var cur: Token = .init(kind: .eof, str: "")
 	var index = str.startIndex
-	var cur = head
 
 	while index != str.endIndex {
 		let c = str[index]
@@ -87,33 +121,25 @@ func tokenize(_ str: String) -> Token {
 
 		if str[index] == "+" || str[index] == "-" {
 			let op = str[index ... index]
-			let tok = Token(kind: .reserved, str: op)
-			cur.next = tok
-			cur = tok
+			newToken(cur: &cur, kind: .reserved, str: .init(op))
 			index = str.index(after: index)
 			continue
 		}
 
 		if c.isNumber {
 			let start = index
-			while index != str.endIndex && str[index].isNumber {
+			while index != str.endIndex, str[index].isNumber {
 				index = str.index(after: index)
 			}
 			let numStr = str[start ..< index]
-			let num = Int(numStr)
-			let tok = newToken(cur: cur, kind: .number, str: numStr)
-			tok.number = num
-			cur.next = tok
-			cur = tok
+			newToken(cur: &cur, kind: .number, str: .init(numStr), number: Int(numStr))
 			continue
 		}
-		fatalError("failed tokenize \(str[index])")
+		fatalError("Failed tokenize \(str[index])")
 	}
-	cur.next = Token(kind: .eof, str: "")
-	return head.next!
+	cur.setEdge(Token(kind: .eof, str: ""))
+	return cur.next!.wrappedValue
 }
-
-var tokens: Token!
 
 func main() {
 	let args = CommandLine.arguments
@@ -128,18 +154,19 @@ func main() {
 	print(".global _main")
 	print("_main:")
 
-	tokens = tokenize(str)
+	var head = tokenize(str)
 
-	printInstruction(op: "mov", args: "w0", "#\(expectNumber())")
+	printInstruction(op: "mov", args: "w0", "#\(expectNumber(&head))")
 
-	while !atEOF() {
-		if consume(op: "+") {
-			printInstruction(op: "add", args: "w0", "w0", "#\(expectNumber())")
+	while !atEOF(head) {
+		if consume(&head, op: "+") {
+			printInstruction(op: "add", args: "w0", "w0", "#\(expectNumber(&head))")
 			continue
 		}
-		expect(op: "-")
-		printInstruction(op: "sub", args: "w0", "w0", "#\(expectNumber())")
+		expect(&head, op: "-")
+		printInstruction(op: "sub", args: "w0", "w0", "#\(expectNumber(&head))")
 	}
+
 	print("\tret")
 	exit(0)
 }
