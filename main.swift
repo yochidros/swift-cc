@@ -1,4 +1,5 @@
-import Foundation
+import os
+var userInput = ""
 
 enum TokenKind: String {
   case number
@@ -37,9 +38,12 @@ struct Token: CustomDebugStringConvertible, Equatable {
 
   var next: Ref<Token>?
 
-  init(kind: TokenKind, str: String, number: Int? = nil) {
+  var pos: Int
+
+  init(kind: TokenKind, str: String, number: Int? = nil, pos: Int) {
     self.kind = kind
     self.str = str
+    self.pos = pos
     self.number = number
   }
 
@@ -86,21 +90,21 @@ func consume(_ cur: inout Token?, op: String) -> Bool {
 
 func expect(_ cur: inout Token?, op: String) {
   if cur?.kind != .reserved || cur?.str != op {
-    fatalError("unexpected token: \(op)")
+    printErrorAt(userInput, pos: cur!.pos, msg: "not number \(cur!.str)")
   }
   cur = cur?.next?.wrappedValue
 }
 
 func expectNumber(_ cur: inout Token?) -> Int {
   guard let num = cur?.number, cur?.kind == .number else {
-    fatalError("not number")
+    printErrorAt(userInput, pos: cur!.pos, msg: "not number \(cur!.str)")
   }
   cur = cur?.next?.wrappedValue
   return num
 }
 
-func newToken(cur: inout Token, kind: TokenKind, str: String, number: Int? = nil) {
-  let new = Token(kind: kind, str: str, number: number)
+func newToken(cur: inout Token, kind: TokenKind, str: String, number: Int? = nil, pos: Int) {
+  let new = Token(kind: kind, str: str, number: number, pos: pos)
   cur.setEdge(new)
 }
 
@@ -109,11 +113,12 @@ func atEOF(_ cur: Token?) -> Bool {
 }
 
 func tokenize(_ str: String) -> Token? {
-  var cur: Token = .init(kind: .eof, str: "")
+  var cur: Token = .init(kind: .eof, str: "", pos: 0)
   var index = str.startIndex
 
   while index != str.endIndex {
     let c = str[index]
+
     if c.isWhitespace {
       index = str.index(after: index)
       continue
@@ -121,7 +126,8 @@ func tokenize(_ str: String) -> Token? {
 
     if str[index] == "+" || str[index] == "-" {
       let op = str[index ... index]
-      newToken(cur: &cur, kind: .reserved, str: .init(op))
+      let pos = str.distance(from: str.startIndex, to: index)
+      newToken(cur: &cur, kind: .reserved, str: .init(op), pos: pos)
       index = str.index(after: index)
       continue
     }
@@ -132,13 +138,22 @@ func tokenize(_ str: String) -> Token? {
         index = str.index(after: index)
       }
       let numStr = str[start ..< index]
-      newToken(cur: &cur, kind: .number, str: .init(numStr), number: Int(numStr))
+    let pos = str.distance(from: str.startIndex, to: index)
+      newToken(cur: &cur, kind: .number, str: .init(numStr), number: Int(numStr), pos: pos)
       continue
     }
-    fatalError("Failed tokenize \(str[index])")
+    let pos = str.distance(from: str.startIndex, to: index)
+    printErrorAt(userInput, pos: pos, msg: "invalid token")
   }
-  cur.setEdge(Token(kind: .eof, str: ""))
+  cur.setEdge(Token(kind: .eof, str: "", pos: str.count))
   return cur.next!.wrappedValue
+}
+
+
+@inlinable func printErrorAt(_ userInput: String, pos: Int, msg: String) -> Never {
+  print(userInput)
+  print(String(repeating: " ", count: pos) + "^ \(msg)")
+  exit(1)
 }
 
 func main() {
@@ -150,11 +165,12 @@ func main() {
   }
 
   let str = args[1]
+  userInput = str
+
+  var head = tokenize(str)
 
   print(".global _main")
   print("_main:")
-
-  var head = tokenize(str)
 
   printInstruction(op: "mov", args: "w0", "#\(expectNumber(&head))")
 
