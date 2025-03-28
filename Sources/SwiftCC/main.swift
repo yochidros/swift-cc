@@ -1,33 +1,10 @@
 import os
-var userInput = ""
+nonisolated(unsafe) var userInput = ""
 
 enum TokenKind: String {
   case number
   case reserved
   case eof
-}
-
-@propertyWrapper
-final class Ref<T: Equatable>: Equatable {
-  private var value: T
-
-  var wrappedValue: T {
-    get { value }
-    set { value = newValue }
-  }
-
-  init(_ value: T) {
-    self.value = value
-  }
-
-  subscript<U>(keyPath: WritableKeyPath<T, U>) -> U {
-    get { value[keyPath: keyPath] }
-    set { value[keyPath: keyPath] = newValue }
-  }
-
-  static func == (lhs: Ref<T>, rhs: Ref<T>) -> Bool {
-    return lhs.value == rhs.value
-  }
 }
 
 struct Token: CustomDebugStringConvertible, Equatable {
@@ -156,7 +133,6 @@ func tokenize(_ str: String) -> Token? {
   exit(1)
 }
 
-func main() {
   let args = CommandLine.arguments
 
   guard args.count == 2 else {
@@ -185,6 +161,3 @@ func main() {
 
   print("\tret")
   exit(0)
-}
-
-main()
