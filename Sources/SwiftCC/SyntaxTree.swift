@@ -33,6 +33,7 @@ func newNodeNum(_ value: Int) -> Node {
   return Node(kind: .num, lhs: nil, rhs: nil, value: value)
 }
 
+/// expr    = mul ("+" mul | "-" mul)*
 func makeExpr(_ token: inout Token?) -> Node {
   var mul = makeMul(&token)
 
@@ -49,21 +50,23 @@ func makeExpr(_ token: inout Token?) -> Node {
   return mul
 }
 
+/// mul     = unary ("*" unary | "/" unary)*
 func makeMul(_ token: inout Token?) -> Node {
-  var primary = makePrimary(&token)
+  var unary = makeUnary(&token)
 
   while token != nil {
     if consume(&token, op: "*") {
-      primary = newNode(kind: .mul, lhs: primary, rhs: makePrimary(&token))
+      unary = newNode(kind: .mul, lhs: unary, rhs: makeUnary(&token))
     } else if consume(&token, op: "/") {
-      primary = newNode(kind: .div, lhs: primary, rhs: makePrimary(&token))
+      unary = newNode(kind: .div, lhs: unary, rhs: makeUnary(&token))
     } else {
       break
     }
   }
-  return primary
+  return unary
 }
 
+/// primary = num | "(" expr ")"
 func makePrimary(_ token: inout Token?) -> Node {
   if consume(&token, op: "(") {
     let expr = makeExpr(&token)
@@ -72,5 +75,15 @@ func makePrimary(_ token: inout Token?) -> Node {
   } else {
     let num = newNodeNum(expectNumber(&token))
     return num
+  }
+}
+/// unary   = ("+" | "-")? primary
+func makeUnary(_ token: inout Token?) -> Node {
+  if consume(&token, op: "+") {
+    return makeUnary(&token)
+  } else if consume(&token, op: "-") {
+    return newNode(kind: .sub, lhs: newNodeNum(0), rhs: makeUnary(&token))
+  } else {
+    return makePrimary(&token)
   }
 }
