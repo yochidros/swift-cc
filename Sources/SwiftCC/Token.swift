@@ -2,13 +2,16 @@
 enum TokenKind: String {
   case number
   case reserved
+  case identifier
   case eof
 }
 
 struct Token: CustomDebugStringConvertible, Equatable {
   let kind: TokenKind
   let str: String
+  let length: Int
 
+  // has only when kind == .number
   var number: Int?
 
   var next: Ref<Token>?
@@ -18,6 +21,7 @@ struct Token: CustomDebugStringConvertible, Equatable {
   init(kind: TokenKind, str: String, number: Int? = nil, pos: Int) {
     self.kind = kind
     self.str = str
+    self.length = str.count
     self.pos = pos
     self.number = number
   }
@@ -52,16 +56,25 @@ struct Token: CustomDebugStringConvertible, Equatable {
 }
 
 func consume(_ cur: inout Token?, op: String) -> Bool {
-  if cur?.kind != .reserved || cur?.str != op {
+  if cur?.kind != .reserved || cur?.length != op.count || cur?.str != op {
     return false
   }
   cur = cur?.next?.wrappedValue
   return true
 }
 
+func consumeIndentifer(_ cur: inout Token?) -> Token? {
+  if cur?.kind != .identifier {
+    return nil
+  }
+  let ident = cur
+  cur = cur?.next?.wrappedValue
+  return ident
+}
+
 func expect(_ cur: inout Token?, op: String) {
-  if cur?.kind != .reserved || cur?.str != op {
-    printErrorAt(userInput, pos: cur!.pos, msg: "not number \(cur!.str)")
+  if cur?.kind != .reserved || cur?.length != op.count || cur?.str != op {
+    printErrorAt(userInput, pos: cur!.pos, msg: "'\(op)' is expected. actual is '\(cur!.str)'")
   }
   cur = cur?.next?.wrappedValue
 }
@@ -83,6 +96,15 @@ func atEOF(_ cur: Token?) -> Bool {
   return cur?.kind == .eof
 }
 
+func startsWith(_ cur: Substring, prefix: String) -> Bool {
+  guard cur.count >= prefix.count else {
+    return false
+  }
+  let se = cur.index(cur.startIndex, offsetBy: prefix.count)
+  let base =  cur[cur.startIndex ..< se]
+  return base == prefix
+}
+
 func tokenize(_ str: String) -> Token? {
   var cur: Token = .init(kind: .eof, str: "", pos: 0)
   var index = str.startIndex
@@ -95,7 +117,26 @@ func tokenize(_ str: String) -> Token? {
       continue
     }
 
-    if "+-*/()".contains(str[index]) {
+    if "a" <= c && c <= "z" {
+      let start = index
+      let idStr = str[index ... index]
+      let pos = str.distance(from: str.startIndex, to: start)
+      newToken(cur: &cur, kind: .identifier, str: .init(idStr), pos: pos)
+      index = str.index(after: index)
+      continue
+    }
+
+    let sub = str[index ..< str.endIndex]
+    if startsWith(sub, prefix: "==") || startsWith(sub, prefix: "!=") || startsWith(sub, prefix: "<=") || startsWith(sub, prefix: ">=") {
+      let offsetIndex = str.index(index, offsetBy: 2)
+      let op = str[index ..< offsetIndex]
+      let pos = str.distance(from: str.startIndex, to: index)
+      newToken(cur: &cur, kind: .reserved, str: .init(op), pos: pos)
+      index = offsetIndex
+      continue
+    }
+
+    if "+-*/()<>=;".contains(str[index]) {
       let op = str[index ... index]
       let pos = str.distance(from: str.startIndex, to: index)
       newToken(cur: &cur, kind: .reserved, str: .init(op), pos: pos)

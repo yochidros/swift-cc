@@ -1,52 +1,6 @@
 import os
+
 nonisolated(unsafe) var userInput = ""
-
-
-func printInstruction(op: String, args: String..., comment: String = "") {
-  let inst = "\(op)\t\(args.joined(separator: ", "))"
-  let comment = comment.isEmpty ? "" : " // \(comment)"
-  print("\t\(inst)\(comment)")
-}
-
-
-@inlinable func printErrorAt(_ userInput: String, pos: Int, msg: String) -> Never {
-  print(userInput)
-  print(String(repeating: " ", count: pos) + "^ \(msg)")
-  exit(1)
-}
-
-func generate(_ node: inout Node, isRoot: Bool = true) {
-  if node.kind == .num {
-    printInstruction(op: "mov", args: "x0", "#\(node.value!)", comment: "push")
-    if !isRoot {
-      printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push")
-    }
-    return
-  }
-  generate(&node.lhs!.wrappedValue, isRoot: false)
-  generate(&node.rhs!.wrappedValue, isRoot: false)
-
-  printInstruction(op: "ldr", args: "x1", "[sp], #16", comment: "pop")
-  printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop")
-
-  switch node.kind {
-  case .add:
-    printInstruction(op: "add", args: "x0", "x0", "x1")
-  case .sub:
-    printInstruction(op: "sub", args: "x0", "x0", "x1")
-  case .mul:
-    printInstruction(op: "mul", args: "x0", "x0", "x1")
-  case .div:
-    printInstruction(op: "sdiv", args: "x0", "x0", "x1")
-  default:
-    break
-  }
-
-  if !isRoot {
-    printInstruction(op: "str", args: "x0", "[sp, #-16]!")
-    print()
-  }
-}
 
 let args = CommandLine.arguments
 
@@ -59,13 +13,41 @@ let str = args[1]
 userInput = str
 
 var head = tokenize(str)
-
-var n = makeExpr(&head)
+// print(head)
+var n = makeProgram(&head)
+// print(n)
 
 print(".global _main")
 print("_main:")
 
-generate(&n)
+/* prologue
+stp     fp, lr, [sp, #-16]!   // push fp と lr（16バイト確保）
+mov     fp, sp                // 新しいフレームポインタ設定
+sub     sp, sp, #208          // ローカル変数用のスタック確保
+*/
 
+print("\t// prologue")
+printInstruction(op: "stp", args: "fp", "lr", "[sp, #-16]!", comment: "push fp and lr")
+printInstruction(op: "mov", args: "fp", "sp", comment: "set new frame pointer")
+// 16の倍数にしないとアライメント境界が不正になる
+printInstruction(op: "sub", args: "sp", "sp", "#224", comment: "allocate stack for local variables")
+print()
+
+for var node in n {
+  print("\t// \(node)")
+  generate(&node)
+  // printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
+  print()
+}
+
+
+/* epilogue
+mov sp, fp
+ldp fp, lr, [sp], #16
+*/
+
+print("\t// epilogue")
+printInstruction(op: "mov", args: "sp", "fp", comment: "restore sp")
+printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
 print("\tret")
 exit(0)
