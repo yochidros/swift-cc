@@ -33,9 +33,10 @@ printInstruction(op: "mov", args: "fp", "sp", comment: "set new frame pointer")
 printInstruction(op: "sub", args: "sp", "sp", "#224", comment: "allocate stack for local variables")
 print()
 
+var contxt = CodeGenContext()
 for var node in n {
   print("\t// \(node)")
-  generate(&node)
+  generate(&node, context: &contxt, isRoot: true)
   // printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
   print()
 }

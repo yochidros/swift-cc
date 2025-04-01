@@ -1,5 +1,9 @@
 
-func generate(_ node: inout Node, isRoot: Bool = true) {
+struct CodeGenContext {
+  var localVariables: LocalVariable?
+}
+
+func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = true) {
   switch node.kind {
   case .num:
     printInstruction(op: "mov", args: "x0", "#\(node.value!)", comment: "push")
@@ -14,7 +18,7 @@ func generate(_ node: inout Node, isRoot: Bool = true) {
     return
   case .assign:
     generateLValue(&node.lhs!.wrappedValue)
-    generate(&node.rhs!.wrappedValue, isRoot: false)
+    generate(&node.rhs!.wrappedValue, context: &context, isRoot: false)
     storeLValue()
     print()
     return
@@ -22,8 +26,8 @@ func generate(_ node: inout Node, isRoot: Bool = true) {
     break
   }
 
-  generate(&node.lhs!.wrappedValue, isRoot: false)
-  generate(&node.rhs!.wrappedValue, isRoot: false)
+  generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
+  generate(&node.rhs!.wrappedValue, context: &context, isRoot: false)
 
   printInstruction(op: "ldr", args: "x1", "[sp], #16", comment: "pop")
   printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop")

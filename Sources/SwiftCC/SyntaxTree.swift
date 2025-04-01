@@ -36,7 +36,7 @@ extension Node: CustomDebugStringConvertible {
     case .num:
       return "\(value!)"
     case .lvar:
-      return "lvar '\(rawValue!)'"
+      return "lvar '\(rawValue!)'[\(offset!)]"
     default:
       if lhs == nil || rhs == nil {
         return "(\(kind))"
@@ -44,6 +44,33 @@ extension Node: CustomDebugStringConvertible {
       return "(\(lhs!.wrappedValue.debugDescription) \(kind) \(rhs!.wrappedValue.debugDescription))"
     }
   }
+}
+
+struct LocalVariable: Equatable {
+  var name: String
+  var offset: Int // offset from RBP
+  var next: Ref<LocalVariable>?
+}
+
+extension LocalVariable: CustomDebugStringConvertible {
+  var debugDescription: String {
+    if let next {
+      return "\(name)[\(offset)] -> \(next.wrappedValue)"
+    } else {
+      return "\(name)[\(offset)]"
+    }
+  }
+}
+
+func findLovalVariable(from token: Token?, lvals root: LocalVariable?) -> LocalVariable? {
+  var cur = root
+  while let l = cur {
+    if l.name == token?.str {
+      return l
+    }
+    cur = cur?.next?.wrappedValue
+  }
+  return nil
 }
 
 func newNode(kind: NodeKind, lhs: Node, rhs: Node) -> Node {
@@ -145,6 +172,7 @@ func makeMul(_ token: inout Token?) -> Node {
   return unary
 }
 
+nonisolated(unsafe) var locals: LocalVariable?
 /// primary    = num | identifier | "(" expr ")"
 func makePrimary(_ token: inout Token?) -> Node {
   if consume(&token, op: "(") {
@@ -154,8 +182,24 @@ func makePrimary(_ token: inout Token?) -> Node {
   }
 
   if let identifier = consumeIndentifer(&token) {
-    let offset = (Int(identifier.str.utf8.first!) - Int(Character("a").asciiValue!) + 1) * 8
-    return Node(kind: .lvar, lhs: nil, rhs: nil, offset: offset, rawValue: identifier.str)
+    let localv = findLovalVariable(from: identifier, lvals: locals)
+    var node = Node(kind: .lvar, lhs: nil, rhs: nil, offset: nil, rawValue: identifier.str)
+    if let localv {
+      node.offset = localv.offset
+    } else {
+      var l = LocalVariable(name: identifier.str, offset: 0)
+      if let v = locals {
+        l.next = Ref<LocalVariable>(v)
+        l.offset = v.offset + 8;
+        node.offset = l.offset
+        locals = l
+      } else {
+        l.offset = 8
+        node.offset = l.offset
+        locals = l
+      }
+    }
+    return node
   }
 
   let num = newNodeNum(expectNumber(&token))

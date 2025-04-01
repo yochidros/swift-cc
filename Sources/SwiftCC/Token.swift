@@ -106,7 +106,7 @@ func startsWith(_ cur: Substring, prefix: String) -> Bool {
 }
 
 func tokenize(_ str: String) -> Token? {
-  var cur: Token = .init(kind: .eof, str: "", pos: 0)
+  var cur: Token = Token(kind: .eof, str: "", pos: 0)
   var index = str.startIndex
 
   while index != str.endIndex {
@@ -119,10 +119,12 @@ func tokenize(_ str: String) -> Token? {
 
     if "a" <= c && c <= "z" {
       let start = index
-      let idStr = str[index ... index]
+      while index != str.endIndex, "a" <= str[index], str[index] <= "z" {
+        index = str.index(after: index)
+      }
+      let idStr = str[start ..< index]
       let pos = str.distance(from: str.startIndex, to: start)
       newToken(cur: &cur, kind: .identifier, str: .init(idStr), pos: pos)
-      index = str.index(after: index)
       continue
     }
 
@@ -150,7 +152,7 @@ func tokenize(_ str: String) -> Token? {
         index = str.index(after: index)
       }
       let numStr = str[start ..< index]
-    let pos = str.distance(from: str.startIndex, to: index)
+      let pos = str.distance(from: str.startIndex, to: index)
       newToken(cur: &cur, kind: .number, str: .init(numStr), number: Int(numStr), pos: pos)
       continue
     }
@@ -158,5 +160,5 @@ func tokenize(_ str: String) -> Token? {
     printErrorAt(userInput, pos: pos, msg: "invalid token")
   }
   cur.setEdge(Token(kind: .eof, str: "", pos: str.count))
-  return cur.next!.wrappedValue
+  return cur.next?.wrappedValue
 }
