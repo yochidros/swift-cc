@@ -5,6 +5,13 @@ struct CodeGenContext {
 
 func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = true) {
   switch node.kind {
+  case .ret:
+    generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
+    printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
+    printInstruction(op: "mov", args: "sp", "fp", comment: "restore sp")
+    printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
+    print("\tret")
+    return
   case .num:
     printInstruction(op: "mov", args: "x0", "#\(node.value!)", comment: "push")
     if !isRoot {

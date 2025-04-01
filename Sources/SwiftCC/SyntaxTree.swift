@@ -14,6 +14,7 @@ enum NodeKind {
   case assign // =
   case lvar // local variable
   case num // number
+  case ret // return
 }
 
 struct Node: Equatable {
@@ -37,6 +38,8 @@ extension Node: CustomDebugStringConvertible {
       return "\(value!)"
     case .lvar:
       return "lvar '\(rawValue!)'[\(offset!)]"
+    case .ret:
+      return "(ret \(lhs!.wrappedValue.debugDescription))"
     default:
       if lhs == nil || rhs == nil {
         return "(\(kind))"
@@ -88,8 +91,14 @@ func makeProgram(_ token: inout Token?) -> [Node] {
   return nodes
 }
 
-/// stmt       = expr ";"
+/// stmt       = expr ";" | "return" expr ";"
 func makeStmt(_ token: inout Token?) -> Node {
+  if consume(&token, op: "return") {
+    var node = Node(kind: .ret, lhs: nil, rhs: nil)
+    node.lhs = Ref(makeExpr(&token))
+    expect(&token, op: ";")
+    return node
+  }
   let node = makeExpr(&token)
   expect(&token, op: ";")
   return node

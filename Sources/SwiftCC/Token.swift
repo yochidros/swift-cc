@@ -104,6 +104,9 @@ func startsWith(_ cur: Substring, prefix: String) -> Bool {
   let base =  cur[cur.startIndex ..< se]
   return base == prefix
 }
+func isAlnum(_ c: Character) -> Bool {
+  return c.isLetter || c.isNumber || c == "_"
+}
 
 func tokenize(_ str: String) -> Token? {
   var cur: Token = Token(kind: .eof, str: "", pos: 0)
@@ -115,6 +118,21 @@ func tokenize(_ str: String) -> Token? {
     if c.isWhitespace {
       index = str.index(after: index)
       continue
+    }
+
+    if startsWith(str[index...], prefix: "return") {
+      let sub = str[index..<str.endIndex]
+      if sub.count > 6 {
+        let _e = str.index(index, offsetBy: 6)
+        if !isAlnum(str[_e]) {
+          newToken(cur: &cur, kind: .reserved, str: "return", pos: str.distance(from: str.startIndex, to: index))
+          index = str.index(index, offsetBy: 6)
+          continue
+        }
+      } else {
+        let pos = str.distance(from: str.startIndex, to: index)
+        printErrorAt(userInput, pos: pos, msg: "invalid token")
+      }
     }
 
     if "a" <= c && c <= "z" {
