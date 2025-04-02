@@ -15,6 +15,7 @@ enum NodeKind {
   case lvar // local variable
   case num // number
   case ret // return
+  case `if` // if
 }
 
 struct Node: Equatable {
@@ -29,6 +30,11 @@ struct Node: Equatable {
   var offset: Int?
 
   var rawValue: String?
+
+  // has only when kind == .if
+  var condition: Ref<Node>?
+  var then: Ref<Node>?
+  var `else`: Ref<Node>?
 }
 
 extension Node: CustomDebugStringConvertible {
@@ -40,6 +46,8 @@ extension Node: CustomDebugStringConvertible {
       return "lvar '\(rawValue!)'[\(offset!)]"
     case .ret:
       return "(ret \(lhs!.wrappedValue.debugDescription))"
+    case .if:
+      return "(if \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription) \(`else`?.wrappedValue.debugDescription ?? ""))"
     default:
       if lhs == nil || rhs == nil {
         return "(\(kind))"
@@ -91,12 +99,25 @@ func makeProgram(_ token: inout Token?) -> [Node] {
   return nodes
 }
 
-/// stmt       = expr ";" | "return" expr ";"
+/// stmt       = expr ";"
+///              | "return" expr ";"
+///              | "if" "(" expr ")" stmt ("else" stmt)?
 func makeStmt(_ token: inout Token?) -> Node {
   if consume(&token, op: "return") {
     var node = Node(kind: .ret, lhs: nil, rhs: nil)
     node.lhs = Ref(makeExpr(&token))
     expect(&token, op: ";")
+    return node
+  }
+  if consume(&token, op: "if") {
+    expect(&token, op: "(")
+    var node = Node(kind: .`if`)
+    node.condition = Ref(makeExpr(&token))
+    expect(&token, op: ")")
+    node.then = Ref(makeStmt(&token))
+    if consume(&token, op: "else") {
+      node.else = Ref(makeStmt(&token))
+    }
     return node
   }
   let node = makeExpr(&token)

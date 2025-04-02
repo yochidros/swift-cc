@@ -43,13 +43,13 @@ struct Token: CustomDebugStringConvertible, Equatable {
       if kind == .eof {
         return "\(kind) -> \(next.wrappedValue)"
         } else {
-          return "\(kind)(\(str)) -> \(next.wrappedValue)"
+          return "\(kind)('\(str)') -> \(next.wrappedValue)"
         }
       } else {
         if kind == .eof {
           return "\(kind)"
           } else {
-            return "\(kind)(\(str))"
+            return "\(kind)('\(str)')"
           }
       }
   }
@@ -108,6 +108,24 @@ func isAlnum(_ c: Character) -> Bool {
   return c.isLetter || c.isNumber || c == "_"
 }
 
+func startWithReserved(_ cur: Substring) -> String? {
+  let keyword = ["return", "if", "else"]
+  for k in keyword where k.count <= cur.count {
+    let i = cur.index(cur.startIndex, offsetBy: k.count)
+    if startsWith(cur, prefix: k), !isAlnum(cur[i]) {
+      return k
+    }
+  }
+
+  let ops = ["==", "!=", "<=", ">="]
+  for op in ops where op.count <= cur.count {
+    if startsWith(cur, prefix: op) {
+      return op
+    }
+  }
+  return nil
+}
+
 func tokenize(_ str: String) -> Token? {
   var cur: Token = Token(kind: .eof, str: "", pos: 0)
   var index = str.startIndex
@@ -120,19 +138,10 @@ func tokenize(_ str: String) -> Token? {
       continue
     }
 
-    if startsWith(str[index...], prefix: "return") {
-      let sub = str[index..<str.endIndex]
-      if sub.count > 6 {
-        let _e = str.index(index, offsetBy: 6)
-        if !isAlnum(str[_e]) {
-          newToken(cur: &cur, kind: .reserved, str: "return", pos: str.distance(from: str.startIndex, to: index))
-          index = str.index(index, offsetBy: 6)
-          continue
-        }
-      } else {
-        let pos = str.distance(from: str.startIndex, to: index)
-        printErrorAt(userInput, pos: pos, msg: "invalid token")
-      }
+    if let keyword = startWithReserved(str[index...]) {
+      newToken(cur: &cur, kind: .reserved, str: keyword, pos: str.distance(from: str.startIndex, to: index))
+      index = str.index(index, offsetBy: keyword.count)
+      continue
     }
 
     if "a" <= c && c <= "z" {
@@ -143,16 +152,6 @@ func tokenize(_ str: String) -> Token? {
       let idStr = str[start ..< index]
       let pos = str.distance(from: str.startIndex, to: start)
       newToken(cur: &cur, kind: .identifier, str: .init(idStr), pos: pos)
-      continue
-    }
-
-    let sub = str[index ..< str.endIndex]
-    if startsWith(sub, prefix: "==") || startsWith(sub, prefix: "!=") || startsWith(sub, prefix: "<=") || startsWith(sub, prefix: ">=") {
-      let offsetIndex = str.index(index, offsetBy: 2)
-      let op = str[index ..< offsetIndex]
-      let pos = str.distance(from: str.startIndex, to: index)
-      newToken(cur: &cur, kind: .reserved, str: .init(op), pos: pos)
-      index = offsetIndex
       continue
     }
 

@@ -1,6 +1,7 @@
 
 struct CodeGenContext {
   var localVariables: LocalVariable?
+  var labelSeq: Int = 0
 }
 
 func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = true) {
@@ -12,6 +13,29 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
     print("\tret")
     return
+  case .`if`:
+    context.labelSeq += 1
+    if let e = node.else {
+      generate(&node.condition!.wrappedValue, context: &context, isRoot: false)
+      printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
+      printInstruction(op: "cmp", args: "x0", "#0")
+      printInstruction(op: "beq", args: ".Lelse\(context.labelSeq)")
+      generate(&node.then!.wrappedValue, context: &context, isRoot: false)
+      printInstruction(op: "b", args: ".Lend\(context.labelSeq)")
+      print(".Lelse\(context.labelSeq):")
+      generate(&e.wrappedValue, context: &context, isRoot: false)
+      print(".Lend\(context.labelSeq):")
+    } else {
+      generate(&node.condition!.wrappedValue, context: &context, isRoot: false)
+      printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
+      printInstruction(op: "cmp", args: "x0", "#0")
+      printInstruction(op: "beq", args: ".Lend\(context.labelSeq)")
+      generate(&node.then!.wrappedValue, context: &context, isRoot: false)
+      print()
+      print(".Lend\(context.labelSeq):")
+    }
+    return
+
   case .num:
     printInstruction(op: "mov", args: "x0", "#\(node.value!)", comment: "push")
     if !isRoot {
