@@ -41,5 +41,7 @@ assert 2 'if(1) return 2; return 1;'
 assert 1 'if(0) return 2; else return 1;'
 assert 2 'if(1) return 2; else return 1;'
 assert 3 'a = 0; while (a < 3) a = a + 1; return a;'
+assert 55 'i=0; j=0; for (i=0; i<=10; i=i+1) j=i+j; return j;'
+assert 3 'for (;;) return 3; return 5;'
 
 echo OK

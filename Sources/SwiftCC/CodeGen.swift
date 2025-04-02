@@ -46,6 +46,25 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     printInstruction(op: "b", args: ".Lbegin\(context.labelSeq)")
     print(".Lend\(context.labelSeq):")
     return
+  case .`for`:
+    context.labelSeq += 1
+    if let e = node.lhs {
+      generate(&e.wrappedValue, context: &context, isRoot: false)
+    }
+    print(".Lbegin\(context.labelSeq):")
+    if let e = node.condition {
+      generate(&e.wrappedValue, context: &context, isRoot: false)
+      printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
+      printInstruction(op: "cmp", args: "x0", "#0")
+      printInstruction(op: "beq", args: ".Lend\(context.labelSeq)")
+    }
+    generate(&node.then!.wrappedValue, context: &context, isRoot: false)
+    if let e = node.rhs {
+      generate(&e.wrappedValue, context: &context, isRoot: false)
+    }
+    printInstruction(op: "b", args: ".Lbegin\(context.labelSeq)")
+    print(".Lend\(context.labelSeq):")
+    return
   case .num:
     printInstruction(op: "mov", args: "x0", "#\(node.value!)", comment: "push")
     if !isRoot {

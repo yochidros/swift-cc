@@ -109,7 +109,7 @@ func isAlnum(_ c: Character) -> Bool {
 }
 
 func startWithReserved(_ cur: Substring) -> String? {
-  let keyword = ["return", "if", "else", "while"]
+  let keyword = ["return", "if", "else", "while", "for"]
   for k in keyword where k.count <= cur.count {
     let i = cur.index(cur.startIndex, offsetBy: k.count)
     if startsWith(cur, prefix: k), !isAlnum(cur[i]) {

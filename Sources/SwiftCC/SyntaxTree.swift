@@ -17,6 +17,7 @@ enum NodeKind {
   case ret // return
   case `if` // if
   case `while` // while
+  case `for` // for
 }
 
 struct Node: Equatable {
@@ -49,6 +50,10 @@ extension Node: CustomDebugStringConvertible {
       return "(ret \(lhs!.wrappedValue.debugDescription))"
     case .if:
       return "(if \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription) \(`else`?.wrappedValue.debugDescription ?? ""))"
+    case .`while`:
+      return "(while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription))"
+    case .`for`:
+      return "(for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
     default:
       if lhs == nil || rhs == nil {
         return "(\(kind))"
@@ -103,6 +108,7 @@ func makeProgram(_ token: inout Token?) -> [Node] {
 /// stmt       = expr ";"
 ///              | "if" "(" expr ")" stmt ("else" stmt)?
 ///              | "while" "(" expr ")" stmt
+///              | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 ///              | "return" expr ";"
 func makeStmt(_ token: inout Token?) -> Node {
   if consume(&token, op: "return") {
@@ -128,6 +134,25 @@ func makeStmt(_ token: inout Token?) -> Node {
     var node = Node(kind: .`while`)
     node.condition = Ref(makeExpr(&token))
     expect(&token, op: ")")
+    node.then = Ref(makeStmt(&token))
+    return node
+  }
+
+  if consume(&token, op: "for") {
+    expect(&token, op: "(")
+    var node = Node(kind: .`for`)
+    if !consume(&token, op: ";") {
+      node.lhs = Ref(makeExpr(&token))
+      expect(&token, op: ";")
+    }
+    if !consume(&token, op: ";") {
+      node.condition = Ref(makeExpr(&token))
+      expect(&token, op: ";")
+    }
+    if !consume(&token, op: ")") {
+      node.rhs = Ref(makeExpr(&token))
+      expect(&token, op: ")")
+    }
     node.then = Ref(makeStmt(&token))
     return node
   }
