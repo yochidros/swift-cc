@@ -16,6 +16,7 @@ enum NodeKind {
   case num // number
   case ret // return
   case `if` // if
+  case `while` // while
 }
 
 struct Node: Equatable {
@@ -100,8 +101,9 @@ func makeProgram(_ token: inout Token?) -> [Node] {
 }
 
 /// stmt       = expr ";"
-///              | "return" expr ";"
 ///              | "if" "(" expr ")" stmt ("else" stmt)?
+///              | "while" "(" expr ")" stmt
+///              | "return" expr ";"
 func makeStmt(_ token: inout Token?) -> Node {
   if consume(&token, op: "return") {
     var node = Node(kind: .ret, lhs: nil, rhs: nil)
@@ -120,6 +122,16 @@ func makeStmt(_ token: inout Token?) -> Node {
     }
     return node
   }
+
+  if consume(&token, op: "while") {
+    expect(&token, op: "(")
+    var node = Node(kind: .`while`)
+    node.condition = Ref(makeExpr(&token))
+    expect(&token, op: ")")
+    node.then = Ref(makeStmt(&token))
+    return node
+  }
+
   let node = makeExpr(&token)
   expect(&token, op: ";")
   return node

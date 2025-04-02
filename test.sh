@@ -36,5 +36,10 @@ assert 10 '- - +10;'
 assert 15 '1+2+3*4;'
 assert 1 '1+2/3*4;'
 assert 2 '+1-2++3;'
+assert 1 'if(0) return 2; return 1;'
+assert 2 'if(1) return 2; return 1;'
+assert 1 'if(0) return 2; else return 1;'
+assert 2 'if(1) return 2; else return 1;'
+assert 3 'a = 0; while (a < 3) a = a + 1; return a;'
 
 echo OK
