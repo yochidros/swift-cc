@@ -13,6 +13,18 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
     print("\tret")
     return
+  case .block:
+    var tmp = node.lhs?.wrappedValue
+    print()
+    print("\t// block start -->")
+    print()
+    while tmp != nil {
+      generate(&tmp!, context: &context, isRoot: false)
+      tmp = tmp?.next?.wrappedValue
+    }
+    print("\t// <-- block end")
+    print()
+    return
   case .`if`:
     context.labelSeq += 1
     if let e = node.else {

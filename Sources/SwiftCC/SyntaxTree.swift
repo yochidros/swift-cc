@@ -18,6 +18,7 @@ enum NodeKind {
   case `if` // if
   case `while` // while
   case `for` // for
+  case block // block
 }
 
 struct Node: Equatable {
@@ -32,6 +33,8 @@ struct Node: Equatable {
   var offset: Int?
 
   var rawValue: String?
+
+  var next: Ref<Node>?
 
   // has only when kind == .if
   var condition: Ref<Node>?
@@ -54,6 +57,14 @@ extension Node: CustomDebugStringConvertible {
       return "(while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription))"
     case .`for`:
       return "(for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
+    case .block:
+      var str = ""
+      var cur = lhs
+      while let n = cur {
+        str += "\(n.wrappedValue.debugDescription) "
+        cur = n.wrappedValue.next
+      }
+      return "({ \(str) })"
     default:
       if lhs == nil || rhs == nil {
         return "(\(kind))"
@@ -106,10 +117,12 @@ func makeProgram(_ token: inout Token?) -> [Node] {
 }
 
 /// stmt       = expr ";"
+///              | "{" stmt* "}"
 ///              | "if" "(" expr ")" stmt ("else" stmt)?
 ///              | "while" "(" expr ")" stmt
 ///              | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 ///              | "return" expr ";"
+nonisolated(unsafe) var block: Node?
 func makeStmt(_ token: inout Token?) -> Node {
   if consume(&token, op: "return") {
     var node = Node(kind: .ret, lhs: nil, rhs: nil)
@@ -155,6 +168,19 @@ func makeStmt(_ token: inout Token?) -> Node {
     }
     node.then = Ref(makeStmt(&token))
     return node
+  }
+
+  if consume(&token, op: "{") {
+    var bodies: [Node] = []
+    while !consume(&token, op: "}") {
+      bodies.append(makeStmt(&token))
+    }
+    var tmp: Ref<Node>?
+    for var b in bodies.reversed() {
+      b.next = tmp
+      tmp = .init(b)
+    }
+    return Node(kind: .block, lhs: tmp, rhs: nil)
   }
 
   let node = makeExpr(&token)

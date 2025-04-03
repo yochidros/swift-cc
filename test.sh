@@ -43,5 +43,8 @@ assert 2 'if(1) return 2; else return 1;'
 assert 3 'a = 0; while (a < 3) a = a + 1; return a;'
 assert 55 'i=0; j=0; for (i=0; i<=10; i=i+1) j=i+j; return j;'
 assert 3 'for (;;) return 3; return 5;'
+assert 6 'i=0; j=0; for (i=0; i <= 3; i =i+1)  {j=j+i;} return j;'
+assert 0 'i=0; j=0; for (i=0; i <= 3; i =i+1)  {j=j+i; j=0;} return j;'
+assert 3 'i=0; j=0; for (i=0; i <= 3; i =i+1)  {j=j+i; j=0; j=i;} return j;'
 
 echo OK
