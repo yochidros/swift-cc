@@ -146,7 +146,7 @@ func tokenize(_ str: String) -> Token? {
 
     if "a" <= c && c <= "z" {
       let start = index
-      while index != str.endIndex, "a" <= str[index], str[index] <= "z" {
+      while index != str.endIndex, isAlnum(str[index]) {
         index = str.index(after: index)
       }
       let idStr = str[start ..< index]

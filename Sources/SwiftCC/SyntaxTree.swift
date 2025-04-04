@@ -19,6 +19,7 @@ enum NodeKind {
   case `while` // while
   case `for` // for
   case block // block
+  case functionCall // function call
 }
 
 struct Node: Equatable {
@@ -35,6 +36,9 @@ struct Node: Equatable {
   var rawValue: String?
 
   var next: Ref<Node>?
+
+  // has only when kind == .functionCall
+  var functionName: String?
 
   // has only when kind == .if
   var condition: Ref<Node>?
@@ -266,7 +270,9 @@ func makeMul(_ token: inout Token?) -> Node {
 }
 
 nonisolated(unsafe) var locals: LocalVariable?
-/// primary    = num | identifier | "(" expr ")"
+/// primary    = num
+///              | identifier ("(" ")")?
+///              | "(" expr ")"
 func makePrimary(_ token: inout Token?) -> Node {
   if consume(&token, op: "(") {
     let expr = makeExpr(&token)
@@ -275,6 +281,13 @@ func makePrimary(_ token: inout Token?) -> Node {
   }
 
   if let identifier = consumeIndentifer(&token) {
+    if consume(&token, op: "(") {
+      expect(&token, op: ")")
+      var n = Node(kind: .functionCall, lhs: nil, rhs: nil)
+      n.functionName = identifier.str
+      return n
+    }
+
     let localv = findLovalVariable(from: identifier, lvals: locals)
     var node = Node(kind: .lvar, lhs: nil, rhs: nil, offset: nil, rawValue: identifier.str)
     if let localv {

@@ -1,5 +1,10 @@
 #!/bin/bash
 
+cat <<EOF | clang -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret8() { return 8; }
+EOF
+
 _clear () {
   rm  tmp tmp.s
 }
@@ -8,7 +13,7 @@ assert() {
  input="$2"
  ./swift-cc "$input" > tmp.s || exit
 
- cc -o tmp tmp.s
+ cc -o tmp tmp.s tmp2.o
 
  ./tmp
 
@@ -46,5 +51,8 @@ assert 3 'for (;;) return 3; return 5;'
 assert 6 'i=0; j=0; for (i=0; i <= 3; i =i+1)  {j=j+i;} return j;'
 assert 0 'i=0; j=0; for (i=0; i <= 3; i =i+1)  {j=j+i; j=0;} return j;'
 assert 3 'i=0; j=0; for (i=0; i <= 3; i =i+1)  {j=j+i; j=0; j=i;} return j;'
+
+assert 3 'return ret3();'
+assert 8 'return ret8();'
 
 echo OK

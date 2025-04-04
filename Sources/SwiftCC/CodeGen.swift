@@ -25,6 +25,11 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     print("\t// <-- block end")
     print()
     return
+  case .functionCall:
+    printInstruction(op: "bl", args: "_\(node.functionName!)", comment: "call _\(node.functionName!)()")
+    printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push return value")
+    return
+
   case .`if`:
     context.labelSeq += 1
     if let e = node.else {
