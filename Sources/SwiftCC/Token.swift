@@ -155,7 +155,7 @@ func tokenize(_ str: String) -> Token? {
       continue
     }
 
-    if "+-*/()<>=;{}".contains(str[index]) {
+    if "+-*/()<>=;,{}".contains(str[index]) {
       let op = str[index ... index]
       let pos = str.distance(from: str.startIndex, to: index)
       newToken(cur: &cur, kind: .reserved, str: .init(op), pos: pos)

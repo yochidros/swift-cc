@@ -39,6 +39,7 @@ struct Node: Equatable {
 
   // has only when kind == .functionCall
   var functionName: String?
+  var args: Ref<Node>?
 
   // has only when kind == .if
   var condition: Ref<Node>?
@@ -77,6 +78,12 @@ extension Node: CustomDebugStringConvertible {
     }
   }
 }
+extension Node {
+  func toRef() -> Ref<Node> {
+    return Ref(self)
+  }
+}
+
 
 struct LocalVariable: Equatable {
   var name: String
@@ -282,9 +289,9 @@ func makePrimary(_ token: inout Token?) -> Node {
 
   if let identifier = consumeIndentifer(&token) {
     if consume(&token, op: "(") {
-      expect(&token, op: ")")
       var n = Node(kind: .functionCall, lhs: nil, rhs: nil)
       n.functionName = identifier.str
+      n.args = makeFuncArgs(&token)?.toRef()
       return n
     }
 
@@ -320,4 +327,23 @@ func makeUnary(_ token: inout Token?) -> Node {
   } else {
     return makePrimary(&token)
   }
+}
+
+/// func-args = "(" (assign ("," assign)*)? ")"
+func makeFuncArgs(_ token: inout Token?) -> Node? {
+  guard !consume(&token, op: ")") else {
+    return nil
+  }
+  var args: [Node] = [makeAssign(&token)]
+  while consume(&token, op: ",") {
+    args.append(makeAssign(&token))
+  }
+  expect(&token, op: ")")
+
+  var tmp: Node?
+  for var arg in args.reversed() {
+    arg.next = tmp?.toRef()
+    tmp = .init(arg)
+  }
+  return tmp
 }

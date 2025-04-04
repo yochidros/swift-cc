@@ -26,6 +26,18 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     print()
     return
   case .functionCall:
+    var n = 0
+    var args = node.args?.wrappedValue
+    while var next = args {
+      generate(&next, context: &context, isRoot: false)
+      n += 1
+      args = next.next?.wrappedValue
+    }
+    print()
+    for i in 0..<min(6, n) {
+      printInstruction(op: "ldr", args: "x\(i)", "[sp], #16", comment: "pop argument \(i)")
+    }
+    print()
     printInstruction(op: "bl", args: "_\(node.functionName!)", comment: "call _\(node.functionName!)()")
     printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push return value")
     return
