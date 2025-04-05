@@ -1,6 +1,6 @@
 build:
-	@swift build
-	ln -sF .build/debug/SwiftCC ./swift-cc
+	@swift build > /dev/null
+	@ln -sF .build/debug/SwiftCC ./swift-cc
 
 bin:
 	cc -o main tmp.s
@@ -14,10 +14,10 @@ debug: build
 run: swift-cc
 	.build/debug/SwiftCC $(ARGS)
 
-test: swift-cc
-	./test.sh
+test: build
+	@sh ./test.sh
 
 clean:
-	rm -rf .build *.o *.s *~ tmp* ./swift-cc
+	rm -rf .build *.o *.s *~ tmp* *.c ./swift-cc
 
 .PHONY: test clean
