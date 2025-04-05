@@ -83,26 +83,32 @@ extension Node {
   }
 }
 
+struct VariableList: Equatable {
+  var next: Ref<VariableList>?
+  var variable: Variable?
+}
+extension VariableList {
+  func toRef() -> Ref<VariableList> {
+    return Ref(self)
+  }
+}
+
 struct Variable: Equatable {
   var name: String
-  var offset: Int // offset from RBP
-  var next: Ref<Variable>?
+  var offset: Int
 }
 
 extension Variable: CustomDebugStringConvertible {
   var debugDescription: String {
-    if let next {
-      return "\(name)[\(offset)] -> \(next.wrappedValue)"
-    } else {
-      return "\(name)[\(offset)]"
-    }
+    return "\(name)[\(offset)]"
   }
 }
 
 struct Function: Equatable {
   var node: Node?
-  var localVariable: Variable?
+  var varList: VariableList?
   var stackSize: Int = 0
+  var params: VariableList?
   var name: String = ""
   var next: Ref<Function>?
 }
@@ -122,12 +128,31 @@ extension Function: CustomDebugStringConvertible {
     return "function \(name) {\n\(str)}"
   }
 }
+func readFunctionParams(_ token: inout Token?) -> VariableList? {
+  guard !consume(&token, op: ")") else {
+      return nil
+  }
 
-func findVariable(from token: Token?, vars root: Variable?) -> Variable? {
+  var varLists = [VariableList(variable: .init(name: expectIndentifer(&token), offset: 8))]
+
+  while !consume(&token, op: ")") {
+    expect(&token, op: ",")
+    let v = VariableList(variable: .init(name: expectIndentifer(&token), offset: 8))
+    varLists.append(v)
+  }
+  var tmp: VariableList?
+  while var l = varLists.popLast() {
+    l.next = tmp?.toRef()
+    tmp = l
+  }
+  return tmp!
+}
+
+func findVariable(from token: Token?, vars root: VariableList?) -> Variable? {
   var cur = root
   while let l = cur {
-    if l.name == token?.str {
-      return l
+    if l.variable?.name == token?.str {
+      return l.variable
     }
     cur = cur?.next?.wrappedValue
   }
@@ -157,29 +182,29 @@ func makeProgram(_ token: inout Token?) -> Function {
   return tmp!
 }
 
-/// function = identifier "(" ")" "{" stmt* "}"
+/// function = identifier "(" params? ")" "{" stmt* "}"
+/// params   = identifier ("," identifier)*
 func makeFunction(_ token: inout Token?) -> Function {
   let identifier = expectIndentifer(&token)
+  var program = Function(name: identifier)
   expect(&token, op: "(")
-  expect(&token, op: ")")
+  program.params = readFunctionParams(&token)
   expect(&token, op: "{")
 
   var nodes: [Node] = []
-  var variable: Variable?
+  var varList: VariableList?
   while !consume(&token, op: "}") {
-    nodes.append(makeStmt(&token, &variable))
+    nodes.append(makeStmt(&token, &varList))
   }
 
-  var program = Function()
   var tmp: Node?
   for var node in nodes.reversed() {
     node.next = tmp?.toRef()
     tmp = .init(node)
   }
-  program.name = identifier
   program.node = tmp
-  program.localVariable = variable
-  if let stackSize = variable?.offset {
+  program.varList = varList
+  if let stackSize = varList?.variable?.offset {
     // adjust memory align to 16 bytes.
     if stackSize % 16 != 0 {
       program.stackSize = stackSize + (16 - stackSize % 16)
@@ -197,7 +222,7 @@ func makeFunction(_ token: inout Token?) -> Function {
 ///              | "while" "(" expr ")" stmt
 ///              | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 ///              | "return" expr ";"
-func makeStmt(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   if consume(&token, op: "return") {
     var node = Node(kind: .ret, lhs: nil, rhs: nil)
     node.lhs = Ref(makeExpr(&token, &variable))
@@ -263,12 +288,12 @@ func makeStmt(_ token: inout Token?, _ variable: inout Variable?) -> Node {
 }
 
 /// expr       = assign
-func makeExpr(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeExpr(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   return makeAssign(&token, &variable)
 }
 
 /// assign     = equality ("=" assign)?
-func makeAssign(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeAssign(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var node = makeEquality(&token, &variable)
   if consume(&token, op: "=") {
     node = newNode(kind: .assign, lhs: node, rhs: makeAssign(&token, &variable))
@@ -277,7 +302,7 @@ func makeAssign(_ token: inout Token?, _ variable: inout Variable?) -> Node {
 }
 
 /// equality   = relational ("==" relational | "!=" relational)*
-func makeEquality(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeEquality(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var node = makeRelational(&token, &variable)
   while token != nil {
     if consume(&token, op: "==") {
@@ -291,7 +316,7 @@ func makeEquality(_ token: inout Token?, _ variable: inout Variable?) -> Node {
   return node
 }
 /// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-func makeRelational(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeRelational(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var node = makeAdd(&token, &variable)
   while token != nil {
     if consume(&token, op: "<") {
@@ -309,7 +334,7 @@ func makeRelational(_ token: inout Token?, _ variable: inout Variable?) -> Node 
   return node
 }
 /// add        = mul ("+" mul | "-" mul)*
-func makeAdd(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeAdd(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var mul = makeMul(&token, &variable)
   while token != nil {
     if consume(&token, op: "+") {
@@ -324,7 +349,7 @@ func makeAdd(_ token: inout Token?, _ variable: inout Variable?) -> Node {
 }
 
 /// mul     = unary ("*" unary | "/" unary)*
-func makeMul(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeMul(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var unary = makeUnary(&token, &variable)
 
   while token != nil {
@@ -342,9 +367,9 @@ func makeMul(_ token: inout Token?, _ variable: inout Variable?) -> Node {
 /// primary    = num
 ///              | identifier ("(" ")")?
 ///              | "(" expr ")"
-func makePrimary(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makePrimary(_ token: inout Token?, _ varList: inout VariableList?) -> Node {
   if consume(&token, op: "(") {
-    let expr = makeExpr(&token, &variable)
+    let expr = makeExpr(&token, &varList)
     expect(&token, op: ")")
     return expr
   }
@@ -353,25 +378,23 @@ func makePrimary(_ token: inout Token?, _ variable: inout Variable?) -> Node {
     if consume(&token, op: "(") {
       var n = Node(kind: .functionCall, lhs: nil, rhs: nil)
       n.functionName = identifier.str
-      n.args = makeFuncArgs(&token, &variable)?.toRef()
+      n.args = makeFuncArgs(&token, &varList)?.toRef()
       return n
     }
 
-    let foundVar = findVariable(from: identifier, vars: variable)
+    let foundVar = findVariable(from: identifier, vars: varList)
     var node = Node(kind: .var, lhs: nil, rhs: nil, rawValue: identifier.str)
     if let foundVar {
       node.variable = foundVar
     } else {
-      var v = Variable(name: identifier.str, offset: 8)
-      if let _var = variable {
-        v.next = Ref<Variable>(_var)
-        v.offset = _var.offset + 8;
-        node.variable = v
-        variable = v
-      } else {
-        node.variable = v
-        variable = v
+      var vl = VariableList(variable: Variable(name: identifier.str, offset: 8))
+      if let _var = varList {
+        vl.next = Ref<VariableList>(_var)
+        vl.variable?.offset = (_var.variable?.offset ?? 0) + 8;
+        node.variable = vl.variable
       }
+      node.variable = vl.variable
+      varList = vl
     }
     return node
   }
@@ -380,7 +403,7 @@ func makePrimary(_ token: inout Token?, _ variable: inout Variable?) -> Node {
   return num
 }
 /// unary   = ("+" | "-")? primary
-func makeUnary(_ token: inout Token?, _ variable: inout Variable?) -> Node {
+func makeUnary(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   if consume(&token, op: "+") {
     return makeUnary(&token, &variable)
   } else if consume(&token, op: "-") {
@@ -391,7 +414,7 @@ func makeUnary(_ token: inout Token?, _ variable: inout Variable?) -> Node {
 }
 
 /// func-args = "(" (assign ("," assign)*)? ")"
-func makeFuncArgs(_ token: inout Token?, _ variable: inout Variable?) -> Node? {
+func makeFuncArgs(_ token: inout Token?, _ variable: inout VariableList?) -> Node? {
   guard !consume(&token, op: ")") else {
     return nil
   }

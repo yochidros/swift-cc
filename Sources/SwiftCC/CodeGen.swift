@@ -19,6 +19,15 @@ func codeGen(program: Function) {
     printInstruction(op: "sub", args: "sp", "sp", "#\(h.stackSize)", comment: "allocate stack for local variables")
     print()
 
+    var params = h.params
+    var i = 0
+    while params != nil {
+      let variable = params!.variable!
+      printInstruction(op: "str", args: "x\(i)", "[sp, #\(variable.offset)]", comment: "store parameter \(variable.name)")
+      i += 1
+      params = params!.next?.wrappedValue
+    }
+
     var context = CodeGenContext(functionName: "\(h.name)")
     var node = h.node
     while node != nil {
