@@ -54,9 +54,9 @@ extension Node: CustomDebugStringConvertible {
     case .`var`:
       return "var '\(rawValue!)'[\(variable!.offset)]"
     case .ret:
-      return "(ret \(lhs!.wrappedValue.debugDescription))"
+      return "return \(lhs!.wrappedValue.debugDescription)"
     case .if:
-      return "(if \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription) \(`else`?.wrappedValue.debugDescription ?? ""))"
+      return "if (\(condition!.wrappedValue.debugDescription)) {\(then!.wrappedValue.debugDescription)} else { \(`else`?.wrappedValue.debugDescription ?? "")}"
     case .`while`:
       return "(while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription))"
     case .`for`:
@@ -99,10 +99,28 @@ extension Variable: CustomDebugStringConvertible {
   }
 }
 
-struct Program {
+struct Function: Equatable {
   var node: Node?
-  var variable: Variable?
+  var localVariable: Variable?
   var stackSize: Int = 0
+  var name: String = ""
+  var next: Ref<Function>?
+}
+extension Function {
+  func toRef() -> Ref<Function> {
+    return Ref(self)
+  }
+}
+extension Function: CustomDebugStringConvertible {
+  var debugDescription: String {
+    var str = ""
+    var cur: Node? = node
+    while let n = cur {
+      str += " \(n.debugDescription)\n"
+      cur = n.next?.wrappedValue
+    }
+    return "function \(name) {\n\(str)}"
+  }
 }
 
 func findVariable(from token: Token?, vars root: Variable?) -> Variable? {
@@ -124,25 +142,55 @@ func newNodeNum(_ value: Int) -> Node {
   return Node(kind: .num, lhs: nil, rhs: nil, value: value)
 }
 
-/// program    = stmt*
-func makeProgram(_ token: inout Token?) -> Program {
+/// program    = function*
+func makeProgram(_ token: inout Token?) -> Function {
+  var functions: [Function] = []
+
+  while !atEOF(token) {
+    functions.append(makeFunction(&token))
+  }
+  var tmp: Function?
+  for var f in functions.reversed() {
+    f.next = tmp?.toRef()
+    tmp = .init(f)
+  }
+  return tmp!
+}
+
+/// function = identifier "(" ")" "{" stmt* "}"
+func makeFunction(_ token: inout Token?) -> Function {
+  let identifier = expectIndentifer(&token)
+  expect(&token, op: "(")
+  expect(&token, op: ")")
+  expect(&token, op: "{")
+
   var nodes: [Node] = []
   var variable: Variable?
-  while !atEOF(token) {
+  while !consume(&token, op: "}") {
     nodes.append(makeStmt(&token, &variable))
   }
 
-  var program = Program()
+  var program = Function()
   var tmp: Node?
   for var node in nodes.reversed() {
     node.next = tmp?.toRef()
     tmp = .init(node)
   }
+  program.name = identifier
   program.node = tmp
-  program.variable = variable
+  program.localVariable = variable
+  if let stackSize = variable?.offset {
+    // adjust memory align to 16 bytes.
+    if stackSize % 16 != 0 {
+      program.stackSize = stackSize + (16 - stackSize % 16)
+    } else {
+      program.stackSize = stackSize
+    }
+  } else {
+    program.stackSize = 16
+  }
   return program
 }
-
 /// stmt       = expr ";"
 ///              | "{" stmt* "}"
 ///              | "if" "(" expr ")" stmt ("else" stmt)?

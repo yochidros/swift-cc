@@ -1,35 +1,42 @@
-
 struct CodeGenContext {
   var localVariables: Variable?
   var labelSeq: Int = 0
+  var functionName: String?
 }
 
-func codeGen(program: Program) {
-  print(".global _main")
-  print("_main:")
+func codeGen(program: Function) {
 
-  // prologue
-  print("\t// prologue")
-  printInstruction(op: "stp", args: "fp", "lr", "[sp, #-16]!", comment: "push fp and lr")
-  printInstruction(op: "mov", args: "fp", "sp", comment: "set new frame pointer")
-  // 16の倍数にしないとアライメント境界が不正になる
-  printInstruction(op: "sub", args: "sp", "sp", "#\(program.stackSize)", comment: "allocate stack for local variables")
-  print()
+  var head: Function? = program
+  while let h = head {
+    print(".global _\(h.name)")
+    print("_\(h.name):")
 
-  var context = CodeGenContext()
-  var node = program.node
-  while node != nil {
-    generate(&node!, context: &context, isRoot: true)
-    node = node?.next?.wrappedValue
+    // prologue
+    print("\t// prologue")
+    printInstruction(op: "stp", args: "fp", "lr", "[sp, #-16]!", comment: "push fp and lr")
+    printInstruction(op: "mov", args: "fp", "sp", comment: "set new frame pointer")
+    // 16の倍数にしないとアライメント境界が不正になる
+    printInstruction(op: "sub", args: "sp", "sp", "#\(h.stackSize)", comment: "allocate stack for local variables")
     print()
-  }
 
-  // epilogue
-  print("\t// epilogue")
-  print(".Lreturn:")
-  printInstruction(op: "mov", args: "sp", "fp", comment: "restore sp")
-  printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
-  print("\tret")
+    var context = CodeGenContext(functionName: "\(h.name)")
+    var node = h.node
+    while node != nil {
+      generate(&node!, context: &context, isRoot: true)
+      node = node?.next?.wrappedValue
+      print()
+    }
+
+    // epilogue
+    print("\t// epilogue")
+    print(".Lreturn.\(h.name):")
+    if h.stackSize > 0 {
+      printInstruction(op: "mov", args: "sp", "fp", comment: "restore sp")
+      printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
+    }
+    print("\tret")
+    head = h.next?.wrappedValue
+  }
 }
 
 func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = true) {
@@ -37,9 +44,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
   case .ret:
     generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
     printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
-    printInstruction(op: "mov", args: "sp", "fp", comment: "restore sp")
-    printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
-    print("\tret")
+    printInstruction(op: "b", args: ".Lreturn.\(context.functionName!)", comment: "return \(context.functionName!)")
     return
   case .block:
     var tmp = node.lhs?.wrappedValue

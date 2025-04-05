@@ -16,19 +16,11 @@ var token = tokenize(str)
 if args.contains("-D") {
   print(token ?? "")
 }
-var program = makeProgram(&token)
+var f = makeProgram(&token)
 if args.contains("-D") {
-  print(program)
-}
-if let stackSize = program.variable?.offset {
-  // adjust memory align to 16 bytes.
-  if stackSize % 16 != 0 {
-    program.stackSize = stackSize + (16 - stackSize % 16)
-  } else {
-    program.stackSize = stackSize
-  }
+  print(f)
 }
 
-codeGen(program: program)
+codeGen(program: f)
 
 exit(0)

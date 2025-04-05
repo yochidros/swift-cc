@@ -72,6 +72,15 @@ func consumeIndentifer(_ cur: inout Token?) -> Token? {
   return ident
 }
 
+func expectIndentifer(_ cur: inout Token?) -> String {
+  guard let token = cur, token.kind == .identifier else {
+    printErrorAt(userInput, pos: cur!.pos, msg: "not identifier \(cur!.str)")
+  }
+  cur = token.next?.wrappedValue
+  return token.str
+}
+
+
 func expect(_ cur: inout Token?, op: String) {
   if cur?.kind != .reserved || cur?.length != op.count || cur?.str != op {
     printErrorAt(userInput, pos: cur!.pos, msg: "'\(op)' is expected. actual is '\(cur!.str)'")
