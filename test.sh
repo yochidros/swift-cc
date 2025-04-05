@@ -20,7 +20,7 @@ _clear () {
 assert() {
  expected="$1"
  input="$2"
- ./swift-cc "$input" > tmp.s || exit
+ ./swift-cc -raw "$input" > tmp.s || exit
 
  cc -o tmp tmp.s tmp2.o tmp3.o
 
