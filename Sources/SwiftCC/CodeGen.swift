@@ -1,7 +1,35 @@
 
 struct CodeGenContext {
-  var localVariables: LocalVariable?
+  var localVariables: Variable?
   var labelSeq: Int = 0
+}
+
+func codeGen(program: Program) {
+  print(".global _main")
+  print("_main:")
+
+  // prologue
+  print("\t// prologue")
+  printInstruction(op: "stp", args: "fp", "lr", "[sp, #-16]!", comment: "push fp and lr")
+  printInstruction(op: "mov", args: "fp", "sp", comment: "set new frame pointer")
+  // 16の倍数にしないとアライメント境界が不正になる
+  printInstruction(op: "sub", args: "sp", "sp", "#\(program.stackSize)", comment: "allocate stack for local variables")
+  print()
+
+  var context = CodeGenContext()
+  var node = program.node
+  while node != nil {
+    generate(&node!, context: &context, isRoot: true)
+    node = node?.next?.wrappedValue
+    print()
+  }
+
+  // epilogue
+  print("\t// epilogue")
+  print(".Lreturn:")
+  printInstruction(op: "mov", args: "sp", "fp", comment: "restore sp")
+  printInstruction(op: "ldp", args: "fp", "lr", "[sp], #16", comment: "pop fp and lr")
+  print("\tret")
 }
 
 func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = true) {
@@ -100,7 +128,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
       printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push")
     }
     return
-  case .lvar:
+  case .`var`:
     generateLValue(&node)
     loadLValue()
     print()
@@ -172,11 +200,11 @@ func storeLValue() {
 }
 
 func generateLValue(_ node: inout Node) {
-  if node.kind != .lvar {
-    printErrorAt("", pos: nil, msg: "not an lvalue")
+  guard node.kind == .`var`, let val = node.variable else {
+    printErrorAt("", pos: nil, msg: "not an variable")
   }
   printInstruction(op: "mov", args: "x0", "fp")
-  printInstruction(op: "sub", args: "x0", "x0","#\(node.offset!)")
+  printInstruction(op: "sub", args: "x0", "x0","#\(val.offset)")
   printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push address as '\(node.rawValue ?? "")'")
   print()
 }
