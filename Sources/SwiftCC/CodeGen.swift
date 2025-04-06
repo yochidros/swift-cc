@@ -143,15 +143,25 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     }
     return
   case .`var`:
-    generateLValue(&node)
+    generateLValue(&node, &context)
     loadLValue()
     print()
     return
   case .assign:
-    generateLValue(&node.lhs!.wrappedValue)
+    generateLValue(&node.lhs!.wrappedValue, &context)
     generate(&node.rhs!.wrappedValue, context: &context, isRoot: false)
     storeLValue()
     print()
+    return
+  case .addr:
+    print("\t// address of local variable result")
+    generateLValue(&node.lhs!.wrappedValue, &context)
+    return
+  case .deref:
+    print("\t// dereference local variable result")
+    generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
+    print()
+    loadLValue()
     return
   default:
     break
@@ -213,12 +223,21 @@ func storeLValue() {
   printInstruction(op: "str", args: "x1", "[x0]")
 }
 
-func generateLValue(_ node: inout Node) {
-  guard node.kind == .`var`, let val = node.variable else {
+func generateLValue(_ node: inout Node, _ context: inout CodeGenContext) {
+  switch node.kind {
+  case .`var`:
+    let val = node.variable!
+    printInstruction(op: "mov", args: "x0", "fp")
+    printInstruction(op: "sub", args: "x0", "x0","#\(val.offset)")
+    printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push address as '\(node.rawValue ?? "")'")
+    print()
+    break
+  case .deref:
+    print("\t// dereference local variable result")
+    generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
+    print("\t// <--dereference local variable result")
+    break
+  default:
     printErrorAt("", pos: nil, msg: "not an variable")
   }
-  printInstruction(op: "mov", args: "x0", "fp")
-  printInstruction(op: "sub", args: "x0", "x0","#\(val.offset)")
-  printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push address as '\(node.rawValue ?? "")'")
-  print()
 }

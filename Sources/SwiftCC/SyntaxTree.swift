@@ -19,6 +19,8 @@ enum NodeKind {
   case `for` // for
   case block // block
   case functionCall // function call
+  case addr // address
+  case deref // dereference
 }
 
 struct Node: Equatable {
@@ -69,9 +71,11 @@ extension Node: CustomDebugStringConvertible {
         cur = n.wrappedValue.next
       }
       return "({ \(str) })"
+    case .addr, .deref:
+      return "(\(kind) \(lhs!.wrappedValue.debugDescription))"
     default:
       if lhs == nil || rhs == nil {
-        return "(\(kind))"
+        return "(\(lhs != nil ? "": "") \(kind))"
       }
       return "(\(lhs!.wrappedValue.debugDescription) \(kind) \(rhs!.wrappedValue.debugDescription))"
     }
@@ -402,12 +406,19 @@ func makePrimary(_ token: inout Token?, _ varList: inout VariableList?) -> Node 
   let num = newNodeNum(expectNumber(&token))
   return num
 }
-/// unary   = ("+" | "-")? primary
+/// unary   = "+"? primary
+///         | "-"? primary
+///         | "*" unary
+///         | "&" unary
 func makeUnary(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   if consume(&token, op: "+") {
     return makeUnary(&token, &variable)
   } else if consume(&token, op: "-") {
     return newNode(kind: .sub, lhs: newNodeNum(0), rhs: makeUnary(&token, &variable))
+  } else if consume(&token, op: "*") {
+    return Node(kind: .deref, lhs: .init(makeUnary(&token, &variable)), rhs: nil)
+  } else if consume(&token, op: "&") {
+    return Node(kind: .addr, lhs: .init(makeUnary(&token, &variable)), rhs: nil)
   } else {
     return makePrimary(&token, &variable)
   }
