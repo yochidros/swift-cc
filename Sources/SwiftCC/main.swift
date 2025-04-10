@@ -34,7 +34,13 @@ var f = makeProgram(&token)
 if args.contains("-D") {
   print(f)
 }
+var v = Optional(f)
+addType(&v)
 
-codeGen(program: f)
+if args.contains("-D") {
+  print(v!)
+}
+
+codeGen(program: v!)
 
 exit(0)

@@ -38,6 +38,8 @@ struct Node: Equatable {
 
   var next: Ref<Node>?
 
+  var type: Type?
+
   // has only when kind == .functionCall
   var functionName: String?
   var args: Ref<Node>?
@@ -52,30 +54,58 @@ extension Node: CustomDebugStringConvertible {
   var debugDescription: String {
     switch kind {
     case .num:
-      return "\(value!)"
+      if let type {
+        return "\(type.debugDescription) \(value!)"
+      } else {
+        return "\(value!)"
+      }
     case .`var`:
-      return "var '\(rawValue!)'[\(variable!.offset)]"
+      if let type {
+        return "\(type.debugDescription) \(rawValue!)"
+      } else {
+        return "\(rawValue!)"
+      }
     case .ret:
-      return "return \(lhs!.wrappedValue.debugDescription)"
+      if let type {
+        return "\(type.debugDescription) return \(lhs!.wrappedValue.debugDescription)"
+      } else {
+        return "return \(lhs!.wrappedValue.debugDescription)"
+      }
     case .if:
+      if let type {
+        return "\(type.debugDescription) if (\(condition!.wrappedValue.debugDescription)) {\(then!.wrappedValue.debugDescription)} else { \(`else`?.wrappedValue.debugDescription ?? "")}"
+      }
       return "if (\(condition!.wrappedValue.debugDescription)) {\(then!.wrappedValue.debugDescription)} else { \(`else`?.wrappedValue.debugDescription ?? "")}"
     case .`while`:
+      if let type {
+        return "\(type.debugDescription) while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription)"
+      }
       return "(while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription))"
     case .`for`:
+      if let type {
+        return "\(type.debugDescription) for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
+      }
       return "(for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
     case .block:
       var str = ""
       var cur = lhs
       while let n = cur {
-        str += "\(n.wrappedValue.debugDescription) "
+        if let ty = n.wrappedValue.type {
+          str += "\(ty.debugDescription) \(n.wrappedValue.debugDescription) "
+        } else {
+          str += "\(n.wrappedValue.debugDescription) "
+        }
         cur = n.wrappedValue.next
       }
       return "({ \(str) })"
     case .addr, .deref:
+      if let type {
+        return "\(type.debugDescription) \(kind) \(lhs!.wrappedValue.debugDescription)"
+      }
       return "(\(kind) \(lhs!.wrappedValue.debugDescription))"
     default:
       if lhs == nil || rhs == nil {
-        return "(\(lhs != nil ? "": "") \(kind))"
+        return "(\(lhs != nil ? lhs!.wrappedValue.debugDescription: "") \(kind) \(rhs != nil ? rhs!.wrappedValue.debugDescription : ""))"
       }
       return "(\(lhs!.wrappedValue.debugDescription) \(kind) \(rhs!.wrappedValue.debugDescription))"
     }
@@ -100,6 +130,8 @@ extension VariableList {
 struct Variable: Equatable {
   var name: String
   var offset: Int
+
+  var type: Ref<Type>?
 }
 
 extension Variable: CustomDebugStringConvertible {
@@ -406,6 +438,7 @@ func makePrimary(_ token: inout Token?, _ varList: inout VariableList?) -> Node 
   let num = newNodeNum(expectNumber(&token))
   return num
 }
+
 /// unary   = "+"? primary
 ///         | "-"? primary
 ///         | "*" unary
@@ -442,3 +475,19 @@ func makeFuncArgs(_ token: inout Token?, _ variable: inout VariableList?) -> Nod
   }
   return tmp
 }
+
+// /// basetype = "int" "*"*
+// func makeBaseType(_ token: inout Token?) -> Ref<Type>? {
+//   expect(&token, op: "int")
+//
+//   if consume(&token, op: "int") {
+//     var type = Type(kind: .INT)
+//     var base: Ref<Type>?
+//     while consume(&token, op: "*") {
+//       base = type.toRef()
+//       type = Type(kind: .PTR, base: base)
+//     }
+//     return type.toRef()
+//   }
+//   return nil
+// }
