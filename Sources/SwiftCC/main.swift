@@ -9,6 +9,7 @@ guard args.count > 1 else {
   print("\(args[0]): invalid number of arguments")
   exit(1)
 }
+
 if args.contains("-raw") {
   if args.count < 3 {
     print("\(args[0]): -raw option requires a file name")
@@ -31,11 +32,13 @@ if args.contains("-print-token") {
   print(token ?? "")
   exit(0)
 }
+
 var f = makeProgram(&token)
 if args.contains("-print-syntax-tree") || args.contains("-print-synt") {
   print(f)
   exit(0)
 }
+
 var v = Optional(f)
 addType(&v)
 

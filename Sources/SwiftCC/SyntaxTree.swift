@@ -3,11 +3,11 @@ enum NodeKind {
   case sub // -
   case mul // *
   case div // /
-  case eq  // ==
+  case eq // ==
   case neq // !=
-  case lt  // <
-  case lte  // <=
-  case gt  // >
+  case lt // <
+  case lte // <=
+  case gt // >
   case gte // >=
 
   case assign // =
@@ -63,7 +63,7 @@ extension Node: CustomDebugStringConvertible {
       } else {
         return "\(value!)"
       }
-    case .`var`:
+    case .var:
       if let type {
         return "\(type.debugDescription)(\(rawValue!))[\(variable!.offset)]"
       } else {
@@ -80,12 +80,12 @@ extension Node: CustomDebugStringConvertible {
         return "\(type.debugDescription) if (\(condition!.wrappedValue.debugDescription)) {\(then!.wrappedValue.debugDescription)} else { \(`else`?.wrappedValue.debugDescription ?? "")}"
       }
       return "if (\(condition!.wrappedValue.debugDescription)) {\(then!.wrappedValue.debugDescription)} else { \(`else`?.wrappedValue.debugDescription ?? "")}"
-    case .`while`:
+    case .while:
       if let type {
         return "\(type.debugDescription) while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription)"
       }
       return "(while \(condition!.wrappedValue.debugDescription) \(then!.wrappedValue.debugDescription))"
-    case .`for`:
+    case .for:
       if let type {
         return "\(type.debugDescription) for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
       }
@@ -115,18 +115,19 @@ extension Node: CustomDebugStringConvertible {
       }
       return "(*\(lhs!.wrappedValue.debugDescription))"
     case .exprStmt:
-      return "\( lhs != nil ? lhs!.wrappedValue.debugDescription : "" )"
+      return "\(lhs != nil ? lhs!.wrappedValue.debugDescription : "")"
     default:
       if lhs == nil || rhs == nil {
-        return "\(lhs != nil ? lhs!.wrappedValue.debugDescription: "") \(kind) \(rhs != nil ? rhs!.wrappedValue.debugDescription : "")"
+        return "\(lhs != nil ? lhs!.wrappedValue.debugDescription : "") \(kind) \(rhs != nil ? rhs!.wrappedValue.debugDescription : "")"
       }
       return "\(lhs!.wrappedValue.debugDescription) \(kind) \(rhs!.wrappedValue.debugDescription)"
     }
   }
 }
+
 extension Node {
   func toRef() -> Ref<Node> {
-    return Ref(self)
+    Ref(self)
   }
 }
 
@@ -134,9 +135,10 @@ struct VariableList: Equatable {
   var next: Ref<VariableList>?
   var variable: Variable?
 }
+
 extension VariableList {
   func toRef() -> Ref<VariableList> {
-    return Ref(self)
+    Ref(self)
   }
 }
 
@@ -149,7 +151,7 @@ struct Variable: Equatable {
 
 extension Variable: CustomDebugStringConvertible {
   var debugDescription: String {
-    return "\(name)[\(offset)]"
+    "\(name)[\(offset)]"
   }
 }
 
@@ -161,11 +163,13 @@ struct Function: Equatable {
   var name: String = ""
   var next: Ref<Function>?
 }
+
 extension Function {
   func toRef() -> Ref<Function> {
-    return Ref(self)
+    Ref(self)
   }
 }
+
 extension Function: CustomDebugStringConvertible {
   var debugDescription: String {
     var str = ""
@@ -177,9 +181,10 @@ extension Function: CustomDebugStringConvertible {
     return "function \(name) {\n\(str)}"
   }
 }
+
 func readFunctionParams(_ token: inout Token?) -> VariableList? {
   guard !consume(&token, op: ")") else {
-      return nil
+    return nil
   }
 
   func makeParam(_ tok: inout Token?, _ offset: Int?) -> VariableList {
@@ -215,11 +220,11 @@ func findVariable(from token: Token?, vars root: VariableList?) -> Variable? {
 }
 
 func newNode(kind: NodeKind, lhs: Node, rhs: Node) -> Node {
-  return Node(kind: kind, lhs: .init(lhs), rhs: .init(rhs))
+  Node(kind: kind, lhs: .init(lhs), rhs: .init(rhs))
 }
 
 func newNodeNum(_ value: Int) -> Node {
-  return Node(kind: .num, lhs: nil, rhs: nil, value: value)
+  Node(kind: .num, lhs: nil, rhs: nil, value: value)
 }
 
 /// program    = function*
@@ -284,8 +289,8 @@ func makeDeclaration(_ token: inout Token?, _ variable: inout VariableList?) -> 
   var vl = VariableList(variable: v)
   if let _var = variable {
     vl.next = Ref<VariableList>(_var)
-    vl.variable?.offset = (_var.variable?.offset ?? 0) + 8;
-    v.offset = (_var.variable?.offset ?? 0) + 8;
+    vl.variable?.offset = (_var.variable?.offset ?? 0) + 8
+    v.offset = (_var.variable?.offset ?? 0) + 8
   }
   variable = vl
 
@@ -318,7 +323,7 @@ func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   }
   if consume(&token, op: "if") {
     expect(&token, op: "(")
-    var node = Node(kind: .`if`)
+    var node = Node(kind: .if)
     node.condition = Ref(makeExpr(&token, &variable))
     expect(&token, op: ")")
     node.then = Ref(makeStmt(&token, &variable))
@@ -330,7 +335,7 @@ func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
 
   if consume(&token, op: "while") {
     expect(&token, op: "(")
-    var node = Node(kind: .`while`)
+    var node = Node(kind: .while)
     node.condition = Ref(makeExpr(&token, &variable))
     expect(&token, op: ")")
     node.then = Ref(makeStmt(&token, &variable))
@@ -339,7 +344,7 @@ func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
 
   if consume(&token, op: "for") {
     expect(&token, op: "(")
-    var node = Node(kind: .`for`)
+    var node = Node(kind: .for)
     if !consume(&token, op: ";") {
       node.lhs = Ref(makeExpr(&token, &variable))
       expect(&token, op: ";")
@@ -380,7 +385,7 @@ func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
 
 /// expr       = assign
 func makeExpr(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
-  return makeAssign(&token, &variable)
+  makeAssign(&token, &variable)
 }
 
 /// assign     = equality ("=" assign)?
@@ -406,6 +411,7 @@ func makeEquality(_ token: inout Token?, _ variable: inout VariableList?) -> Nod
   }
   return node
 }
+
 /// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 func makeRelational(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var node = makeAdd(&token, &variable)
@@ -424,6 +430,7 @@ func makeRelational(_ token: inout Token?, _ variable: inout VariableList?) -> N
   }
   return node
 }
+
 /// add        = mul ("+" mul | "-" mul)*
 func makeAdd(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   var mul = makeMul(&token, &variable)
@@ -501,15 +508,15 @@ func makePrimary(_ token: inout Token?, _ varList: inout VariableList?) -> Node 
 ///         | "&" unary
 func makeUnary(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   if consume(&token, op: "+") {
-    return makeUnary(&token, &variable)
+    makeUnary(&token, &variable)
   } else if consume(&token, op: "-") {
-    return newNode(kind: .sub, lhs: newNodeNum(0), rhs: makeUnary(&token, &variable))
+    newNode(kind: .sub, lhs: newNodeNum(0), rhs: makeUnary(&token, &variable))
   } else if consume(&token, op: "*") {
-    return Node(kind: .deref, lhs: .init(makeUnary(&token, &variable)), rhs: nil)
+    Node(kind: .deref, lhs: .init(makeUnary(&token, &variable)), rhs: nil)
   } else if consume(&token, op: "&") {
-    return Node(kind: .addr, lhs: .init(makeUnary(&token, &variable)), rhs: nil)
+    Node(kind: .addr, lhs: .init(makeUnary(&token, &variable)), rhs: nil)
   } else {
-    return makePrimary(&token, &variable)
+    makePrimary(&token, &variable)
   }
 }
 

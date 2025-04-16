@@ -6,7 +6,6 @@ func printInstruction(op: String, args: String..., comment: String = "") {
   print("\t\(inst)\(comment)")
 }
 
-
 @inlinable func printErrorAt(_ userInput: String, pos: Int?, msg: String) -> Never {
   print(userInput)
   if let pos {

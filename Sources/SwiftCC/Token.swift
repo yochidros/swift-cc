@@ -21,7 +21,7 @@ struct Token: CustomDebugStringConvertible, Equatable {
   init(kind: TokenKind, str: String, number: Int? = nil, pos: Int) {
     self.kind = kind
     self.str = str
-    self.length = str.count
+    length = str.count
     self.pos = pos
     self.number = number
   }
@@ -41,17 +41,17 @@ struct Token: CustomDebugStringConvertible, Equatable {
   var debugDescription: String {
     if let next {
       if kind == .eof {
-        return "\(kind) -> \(next.wrappedValue)"
-        } else {
-          return "\(kind)('\(str)') -> \(next.wrappedValue)"
-        }
+        "\(kind) -> \(next.wrappedValue)"
       } else {
-        if kind == .eof {
-          return "\(kind)"
-          } else {
-            return "\(kind)('\(str)')"
-          }
+        "\(kind)('\(str)') -> \(next.wrappedValue)"
       }
+    } else {
+      if kind == .eof {
+        "\(kind)"
+      } else {
+        "\(kind)('\(str)')"
+      }
+    }
   }
 }
 
@@ -62,6 +62,7 @@ func consume(_ cur: inout Token?, op: String) -> Bool {
   cur = cur?.next?.wrappedValue
   return true
 }
+
 func peek(_ cur: Token?, to: String) -> Token? {
   if cur?.kind != .reserved || cur?.length != to.count || cur?.str != to {
     return nil
@@ -86,7 +87,6 @@ func expectIndentifer(_ cur: inout Token?, function: String = #function) -> Stri
   return token.str
 }
 
-
 func expect(_ cur: inout Token?, op: String) {
   if cur?.kind != .reserved || cur?.length != op.count || cur?.str != op {
     printErrorAt(userInput, pos: cur!.pos, msg: "'\(op)' is expected. actual is '\(cur!.str)'")
@@ -108,7 +108,7 @@ func newToken(cur: inout Token, kind: TokenKind, str: String, number: Int? = nil
 }
 
 func atEOF(_ cur: Token?) -> Bool {
-  return cur?.kind == .eof
+  cur?.kind == .eof
 }
 
 func startsWith(_ cur: Substring, prefix: String) -> Bool {
@@ -116,11 +116,12 @@ func startsWith(_ cur: Substring, prefix: String) -> Bool {
     return false
   }
   let se = cur.index(cur.startIndex, offsetBy: prefix.count)
-  let base =  cur[cur.startIndex ..< se]
+  let base = cur[cur.startIndex ..< se]
   return base == prefix
 }
+
 func isAlnum(_ c: Character) -> Bool {
-  return c.isLetter || c.isNumber || c == "_"
+  c.isLetter || c.isNumber || c == "_"
 }
 
 func startWithReserved(_ cur: Substring) -> String? {
@@ -142,7 +143,7 @@ func startWithReserved(_ cur: Substring) -> String? {
 }
 
 func tokenize(_ str: String) -> Token? {
-  var cur: Token = Token(kind: .eof, str: "", pos: 0)
+  var cur = Token(kind: .eof, str: "", pos: 0)
   var index = str.startIndex
 
   while index != str.endIndex {
@@ -159,7 +160,7 @@ func tokenize(_ str: String) -> Token? {
       continue
     }
 
-    if "a" <= c && c <= "z" {
+    if c >= "a", c <= "z" {
       let start = index
       while index != str.endIndex, isAlnum(str[index]) {
         index = str.index(after: index)

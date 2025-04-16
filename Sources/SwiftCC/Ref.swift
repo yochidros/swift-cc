@@ -17,6 +17,6 @@ final class Ref<T: Equatable>: Equatable {
   }
 
   static func == (lhs: Ref<T>, rhs: Ref<T>) -> Bool {
-    return lhs.value == rhs.value
+    lhs.value == rhs.value
   }
 }

@@ -1,15 +1,15 @@
 enum TypeKind {
   case INT
   case PTR
-
 }
+
 extension TypeKind: CustomDebugStringConvertible {
   var debugDescription: String {
     switch self {
     case .INT:
-      return "int"
+      "int"
     case .PTR:
-      return "ptr"
+      "ptr"
     }
   }
 }
@@ -28,7 +28,7 @@ extension Type: CustomDebugStringConvertible {
   }
 }
 
-fileprivate func visit(_ node: inout Node?) {
+private func visit(_ node: inout Node?) {
   guard node != nil else { return }
 
   var lhs = node!.lhs?.wrappedValue
@@ -129,7 +129,7 @@ func visitBody(_ node: inout Node?) {
   }
 }
 
-fileprivate func addTypeInNode(_ node: inout Node?) {
+private func addTypeInNode(_ node: inout Node?) {
   guard node != nil else { return }
 
   visit(&node)

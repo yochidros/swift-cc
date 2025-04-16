@@ -5,7 +5,6 @@ struct CodeGenContext {
 }
 
 func codeGen(program: Function) {
-
   var head: Function? = program
   while let h = head {
     print(".global _\(h.name)")
@@ -77,7 +76,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
       args = next.next?.wrappedValue
     }
     print()
-    for i in 0..<min(6, n) {
+    for i in 0 ..< min(6, n) {
       printInstruction(op: "ldr", args: "x\(i)", "[sp], #16", comment: "pop argument \(i)")
     }
     print()
@@ -88,8 +87,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
     printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "end expr statement")
     return
-
-  case .`if`:
+  case .if:
     context.labelSeq += 1
     if let e = node.else {
       generate(&node.condition!.wrappedValue, context: &context, isRoot: false)
@@ -111,7 +109,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
       print(".Lend\(context.labelSeq):")
     }
     return
-  case .`while`:
+  case .while:
     context.labelSeq += 1
     print(".Lbegin\(context.labelSeq):")
     generate(&node.condition!.wrappedValue, context: &context, isRoot: false)
@@ -122,7 +120,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     printInstruction(op: "b", args: ".Lbegin\(context.labelSeq)")
     print(".Lend\(context.labelSeq):")
     return
-  case .`for`:
+  case .for:
     context.labelSeq += 1
     if let e = node.lhs {
       generate(&e.wrappedValue, context: &context, isRoot: false)
@@ -151,7 +149,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
       printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push")
     }
     return
-  case .`var`:
+  case .var:
     print("\t// load local variable > \(node.rawValue!)")
     generateLValue(&node, &context)
     loadLValue()
@@ -213,7 +211,6 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
   case .gte:
     printInstruction(op: "cmp", args: "x0", "x1")
     printInstruction(op: "cset", args: "w0", "ge")
-
   default:
     break
   }
@@ -223,6 +220,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     print()
   }
 }
+
 func loadLValue() {
   printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop address")
   printInstruction(op: "ldr", args: "x0", "[x0]", comment: "load value")
@@ -238,19 +236,17 @@ func storeLValue() {
 
 func generateLValue(_ node: inout Node, _ context: inout CodeGenContext) {
   switch node.kind {
-  case .`var`:
+  case .var:
     let val = node.variable!
     print("\t// load address of local variable \(val.name) \(val.offset)")
     printInstruction(op: "mov", args: "x0", "fp")
-    printInstruction(op: "sub", args: "x0", "x0","#\(val.offset)")
+    printInstruction(op: "sub", args: "x0", "x0", "#\(val.offset)")
     printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push address as '\(node.rawValue ?? "")'")
     print()
-    break
   case .deref:
     print("\t// dereference local variable result")
     generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
     print("\t// <--dereference local variable result")
-    break
   default:
     printErrorAt("", pos: nil, msg: "not an variable")
   }
