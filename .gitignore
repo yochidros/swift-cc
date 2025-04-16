@@ -8,3 +8,4 @@ main
 *tmp
 
 .env
+*.out
