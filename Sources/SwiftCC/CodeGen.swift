@@ -23,7 +23,7 @@ func codeGen(program: Function) {
     var i = 0
     while params != nil {
       let variable = params!.variable!
-      printInstruction(op: "str", args: "x\(i)", "[sp, #\(variable.offset)]", comment: "store parameter \(variable.name)")
+      printInstruction(op: "str", args: "x\(i)", "[fp, #-\(variable.offset)]", comment: "store parameter \(variable.name)")
       i += 1
       params = params!.next?.wrappedValue
     }
@@ -49,6 +49,7 @@ func codeGen(program: Function) {
 }
 
 func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = true) {
+  print("\t// \(node)")
   switch node.kind {
   case .ret:
     generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
@@ -56,7 +57,7 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     printInstruction(op: "b", args: ".Lreturn.\(context.functionName!)", comment: "return \(context.functionName!)")
     return
   case .block:
-    var tmp = node.lhs?.wrappedValue
+    var tmp = node.body?.wrappedValue
     print()
     print("\t// block start -->")
     print()
@@ -82,6 +83,10 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     print()
     printInstruction(op: "bl", args: "_\(node.functionName!)", comment: "call _\(node.functionName!)()")
     printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push return value")
+    return
+  case .exprStmt:
+    generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
+    printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "end expr statement")
     return
 
   case .`if`:
@@ -124,16 +129,20 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     }
     print(".Lbegin\(context.labelSeq):")
     if let e = node.condition {
+      print("\t// for condition")
       generate(&e.wrappedValue, context: &context, isRoot: false)
       printInstruction(op: "ldr", args: "x0", "[sp], #16", comment: "pop result")
       printInstruction(op: "cmp", args: "x0", "#0")
       printInstruction(op: "beq", args: ".Lend\(context.labelSeq)")
     }
+    print("\t// for body")
     generate(&node.then!.wrappedValue, context: &context, isRoot: false)
+    print("\t// for body end")
     if let e = node.rhs {
       generate(&e.wrappedValue, context: &context, isRoot: false)
     }
     printInstruction(op: "b", args: ".Lbegin\(context.labelSeq)")
+    print()
     print(".Lend\(context.labelSeq):")
     return
   case .num:
@@ -143,8 +152,10 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     }
     return
   case .`var`:
+    print("\t// load local variable > \(node.rawValue!)")
     generateLValue(&node, &context)
     loadLValue()
+    print("\t// < loaded local variable")
     print()
     return
   case .assign:
@@ -162,6 +173,8 @@ func generate(_ node: inout Node, context: inout CodeGenContext, isRoot: Bool = 
     generate(&node.lhs!.wrappedValue, context: &context, isRoot: false)
     print()
     loadLValue()
+    return
+  case .null:
     return
   default:
     break
@@ -227,6 +240,7 @@ func generateLValue(_ node: inout Node, _ context: inout CodeGenContext) {
   switch node.kind {
   case .`var`:
     let val = node.variable!
+    print("\t// load address of local variable \(val.name) \(val.offset)")
     printInstruction(op: "mov", args: "x0", "fp")
     printInstruction(op: "sub", args: "x0", "x0","#\(val.offset)")
     printInstruction(op: "str", args: "x0", "[sp, #-16]!", comment: "push address as '\(node.rawValue ?? "")'")

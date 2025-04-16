@@ -1,5 +1,5 @@
-import os
 import Foundation
+import os
 
 nonisolated(unsafe) var userInput = ""
 
@@ -27,18 +27,21 @@ if args.contains("-raw") {
 }
 
 var token = tokenize(userInput)
-if args.contains("-D") {
+if args.contains("-print-token") {
   print(token ?? "")
+  exit(0)
 }
 var f = makeProgram(&token)
-if args.contains("-D") {
+if args.contains("-print-syntax-tree") || args.contains("-print-synt") {
   print(f)
+  exit(0)
 }
 var v = Optional(f)
 addType(&v)
 
-if args.contains("-D") {
+if args.contains("-print-syntax-tree-with-type") || args.contains("-print-syntty") {
   print(v!)
+  exit(0)
 }
 
 codeGen(program: v!)

@@ -21,6 +21,8 @@ enum NodeKind {
   case functionCall // function call
   case addr // address
   case deref // dereference
+  case exprStmt // expression statement
+  case null
 }
 
 struct Node: Equatable {
@@ -40,6 +42,8 @@ struct Node: Equatable {
 
   var type: Type?
 
+  var body: Ref<Node>?
+
   // has only when kind == .functionCall
   var functionName: String?
   var args: Ref<Node>?
@@ -55,15 +59,15 @@ extension Node: CustomDebugStringConvertible {
     switch kind {
     case .num:
       if let type {
-        return "\(type.debugDescription) \(value!)"
+        return "\(type.debugDescription)(\(value!))"
       } else {
         return "\(value!)"
       }
     case .`var`:
       if let type {
-        return "\(type.debugDescription) \(rawValue!)"
+        return "\(type.debugDescription)(\(rawValue!))[\(variable!.offset)]"
       } else {
-        return "\(rawValue!)"
+        return "\(rawValue!)[\(variable!.offset)]"
       }
     case .ret:
       if let type {
@@ -85,10 +89,10 @@ extension Node: CustomDebugStringConvertible {
       if let type {
         return "\(type.debugDescription) for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
       }
-      return "(for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription)"
+      return "(for \(lhs?.wrappedValue.debugDescription ?? "") \(condition?.wrappedValue.debugDescription ?? "") \(rhs?.wrappedValue.debugDescription ?? "") \(then!.wrappedValue.debugDescription))"
     case .block:
       var str = ""
-      var cur = lhs
+      var cur = body
       while let n = cur {
         if let ty = n.wrappedValue.type {
           str += "\(ty.debugDescription) \(n.wrappedValue.debugDescription) "
@@ -98,16 +102,25 @@ extension Node: CustomDebugStringConvertible {
         cur = n.wrappedValue.next
       }
       return "({ \(str) })"
-    case .addr, .deref:
+    case .assign:
+      return "\(lhs!.wrappedValue.debugDescription) = \(rhs!.wrappedValue.debugDescription)"
+    case .addr:
       if let type {
-        return "\(type.debugDescription) \(kind) \(lhs!.wrappedValue.debugDescription)"
+        return "\(type.debugDescription) (&[\(lhs!.wrappedValue.debugDescription)])"
       }
-      return "(\(kind) \(lhs!.wrappedValue.debugDescription))"
+      return "(&\(lhs!.wrappedValue.debugDescription))"
+    case .deref:
+      if let type {
+        return "\(type.debugDescription) *(\(lhs!.wrappedValue.debugDescription))"
+      }
+      return "(*\(lhs!.wrappedValue.debugDescription))"
+    case .exprStmt:
+      return "\( lhs != nil ? lhs!.wrappedValue.debugDescription : "" )"
     default:
       if lhs == nil || rhs == nil {
-        return "(\(lhs != nil ? lhs!.wrappedValue.debugDescription: "") \(kind) \(rhs != nil ? rhs!.wrappedValue.debugDescription : ""))"
+        return "\(lhs != nil ? lhs!.wrappedValue.debugDescription: "") \(kind) \(rhs != nil ? rhs!.wrappedValue.debugDescription : "")"
       }
-      return "(\(lhs!.wrappedValue.debugDescription) \(kind) \(rhs!.wrappedValue.debugDescription))"
+      return "\(lhs!.wrappedValue.debugDescription) \(kind) \(rhs!.wrappedValue.debugDescription)"
     }
   }
 }
@@ -169,14 +182,20 @@ func readFunctionParams(_ token: inout Token?) -> VariableList? {
       return nil
   }
 
-  var varLists = [VariableList(variable: .init(name: expectIndentifer(&token), offset: 8))]
+  func makeParam(_ tok: inout Token?, _ offset: Int?) -> VariableList {
+    let ty = makeBaseType(&tok)
+    var v = Variable(name: expectIndentifer(&tok), offset: (offset ?? 0) + 8)
+    v.type = .init(ty)
+    return VariableList(variable: v)
+  }
 
+  var varLists = [makeParam(&token, nil)]
   while !consume(&token, op: ")") {
     expect(&token, op: ",")
-    let v = VariableList(variable: .init(name: expectIndentifer(&token), offset: 8))
-    varLists.append(v)
+    varLists.append(makeParam(&token, varLists.last?.variable?.offset))
   }
   var tmp: VariableList?
+  varLists.reverse()
   while var l = varLists.popLast() {
     l.next = tmp?.toRef()
     tmp = l
@@ -218,9 +237,11 @@ func makeProgram(_ token: inout Token?) -> Function {
   return tmp!
 }
 
-/// function = identifier "(" params? ")" "{" stmt* "}"
-/// params   = identifier ("," identifier)*
+/// function = basetype identifier "(" params? ")" "{" stmt* "}"
+/// params   = param ("," param)*
+/// param    = baseType identifier
 func makeFunction(_ token: inout Token?) -> Function {
+  makeBaseType(&token)
   let identifier = expectIndentifer(&token)
   var program = Function(name: identifier)
   expect(&token, op: "(")
@@ -228,7 +249,7 @@ func makeFunction(_ token: inout Token?) -> Function {
   expect(&token, op: "{")
 
   var nodes: [Node] = []
-  var varList: VariableList?
+  var varList: VariableList? = program.params
   while !consume(&token, op: "}") {
     nodes.append(makeStmt(&token, &varList))
   }
@@ -252,11 +273,41 @@ func makeFunction(_ token: inout Token?) -> Function {
   }
   return program
 }
+
+/// declaration   = basetype identifier ("=" expr) ";"
+
+func makeDeclaration(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
+  let ty = makeBaseType(&token)
+
+  var v = Variable(name: expectIndentifer(&token), offset: 8)
+  v.type = .init(ty)
+  var vl = VariableList(variable: v)
+  if let _var = variable {
+    vl.next = Ref<VariableList>(_var)
+    vl.variable?.offset = (_var.variable?.offset ?? 0) + 8;
+    v.offset = (_var.variable?.offset ?? 0) + 8;
+  }
+  variable = vl
+
+  if consume(&token, op: ";") {
+    return .init(kind: .null)
+  }
+
+  var node = Node(kind: .assign)
+  expect(&token, op: "=")
+  node.lhs = .init(.init(kind: .var, variable: v, rawValue: v.name))
+  node.rhs = .init(makeExpr(&token, &variable))
+  expect(&token, op: ";")
+
+  return .init(kind: .exprStmt, lhs: .init(node), rhs: nil)
+}
+
 /// stmt       = expr ";"
 ///              | "{" stmt* "}"
 ///              | "if" "(" expr ")" stmt ("else" stmt)?
 ///              | "while" "(" expr ")" stmt
 ///              | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+///              | declaration
 ///              | "return" expr ";"
 func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
   if consume(&token, op: "return") {
@@ -315,10 +366,14 @@ func makeStmt(_ token: inout Token?, _ variable: inout VariableList?) -> Node {
       b.next = tmp
       tmp = .init(b)
     }
-    return Node(kind: .block, lhs: tmp, rhs: nil)
+    return Node(kind: .block, body: tmp)
   }
 
-  let node = makeExpr(&token, &variable)
+  if peek(token, to: "int") != nil {
+    return makeDeclaration(&token, &variable)
+  }
+
+  let node = Node(kind: .exprStmt, lhs: .init(makeExpr(&token, &variable)), rhs: nil)
   expect(&token, op: ";")
   return node
 }
@@ -423,14 +478,15 @@ func makePrimary(_ token: inout Token?, _ varList: inout VariableList?) -> Node 
     if let foundVar {
       node.variable = foundVar
     } else {
-      var vl = VariableList(variable: Variable(name: identifier.str, offset: 8))
-      if let _var = varList {
-        vl.next = Ref<VariableList>(_var)
-        vl.variable?.offset = (_var.variable?.offset ?? 0) + 8;
-        node.variable = vl.variable
-      }
-      node.variable = vl.variable
-      varList = vl
+      fatalError("variable \(identifier.str) not found")
+      // var vl = VariableList(variable: Variable(name: identifier.str, offset: 8))
+      // if let _var = varList {
+      //   vl.next = Ref<VariableList>(_var)
+      //   vl.variable?.offset = (_var.variable?.offset ?? 0) + 8;
+      //   node.variable = vl.variable
+      // }
+      // node.variable = vl.variable
+      // varList = vl
     }
     return node
   }
@@ -476,18 +532,23 @@ func makeFuncArgs(_ token: inout Token?, _ variable: inout VariableList?) -> Nod
   return tmp
 }
 
-// /// basetype = "int" "*"*
-// func makeBaseType(_ token: inout Token?) -> Ref<Type>? {
-//   expect(&token, op: "int")
-//
-//   if consume(&token, op: "int") {
-//     var type = Type(kind: .INT)
-//     var base: Ref<Type>?
-//     while consume(&token, op: "*") {
-//       base = type.toRef()
-//       type = Type(kind: .PTR, base: base)
-//     }
-//     return type.toRef()
-//   }
-//   return nil
-// }
+/// basetype = "int" "*"*
+@discardableResult
+func makeBaseType(_ token: inout Token?) -> Type {
+  expect(&token, op: "int")
+  var type = Type(kind: .INT)
+
+  while consume(&token, op: "*") {
+    type = Type(kind: .PTR, base: .init(type))
+  }
+  return type
+}
+
+func makeVariable(_ name: String, type: Type, _ varlist: inout VariableList?) -> Variable {
+  var v = Variable(name: name, offset: 8)
+  v.type = .init(type)
+  var vl = VariableList(variable: v)
+  vl.next = varlist?.toRef()
+  varlist = vl
+  return v
+}

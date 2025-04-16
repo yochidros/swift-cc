@@ -2,6 +2,10 @@ build:
 	@swift build > /dev/null
 	@ln -sF .build/debug/SwiftCC ./swift-cc
 
+build-v:
+	@swift build
+	@ln -sF .build/debug/SwiftCC ./swift-cc
+
 bin:
 	cc -o main tmp.s
 

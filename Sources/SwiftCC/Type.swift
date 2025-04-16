@@ -1,23 +1,30 @@
 enum TypeKind {
   case INT
   case PTR
+
+}
+extension TypeKind: CustomDebugStringConvertible {
+  var debugDescription: String {
+    switch self {
+    case .INT:
+      return "int"
+    case .PTR:
+      return "ptr"
+    }
+  }
 }
 
 struct Type: Equatable {
   let kind: TypeKind
   var base: Ref<Type>?
 }
+
 extension Type: CustomDebugStringConvertible {
   var debugDescription: String {
     if let b = base {
-      return "\(kind) \(b.wrappedValue)"
+      return "(\(b.wrappedValue))\(kind == .PTR ? "&" : "\(kind)")"
     }
-    switch kind {
-    case .INT:
-      return "int"
-    case .PTR:
-      return "ptr"
-    }
+    return "\(kind)"
   }
 }
 
@@ -54,6 +61,12 @@ fileprivate func visit(_ node: inout Node?) {
     node!.else?.wrappedValue = els
   }
 
+  var body = node!.body?.wrappedValue
+  visit(&body)
+  if let body {
+    node!.body?.wrappedValue = body
+  }
+
   var args = node!.args?.wrappedValue
   visit(&args)
   if let args {
@@ -61,7 +74,7 @@ fileprivate func visit(_ node: inout Node?) {
   }
 
   switch node!.kind {
-  case .mul, .div, .eq, .neq, .lt, .lte, .gt, .gte, .var, .functionCall, .num:
+  case .mul, .div, .eq, .neq, .lt, .lte, .gt, .gte, .functionCall, .num:
     node!.type = Type(kind: .INT)
     return
   case .add:
@@ -84,18 +97,21 @@ fileprivate func visit(_ node: inout Node?) {
   case .assign:
     node!.type = node!.lhs?.wrappedValue.type
     return
+  case .var:
+    node!.type = node!.variable?.type?.wrappedValue
+    return
   case .addr:
     var new = Type(kind: .PTR)
     if let ty = node!.lhs?.wrappedValue.type {
       new.base = .init(ty)
     }
+    node!.type = new
     return
   case .deref:
-    if node!.lhs?.wrappedValue.type?.kind == .PTR {
-      node!.type = node!.lhs?.wrappedValue.type?.base?.wrappedValue
-    } else {
-      node!.type = .init(kind: .INT)
+    if node!.lhs?.wrappedValue.type?.kind != .PTR {
+      fatalError("invalid pointer dereference")
     }
+    node!.type = node!.lhs?.wrappedValue.type?.base?.wrappedValue
     return
   default:
     return
